@@ -13,7 +13,7 @@ import {CombatController} from './combat.js?v=20261109-10';
 import {ProceduralViewmodel} from './viewmodel.js?v=20261109-10';
 import {MotionController} from './motion.js?v=20261109-10';
 import {CombatFX} from './combat-fx.js?v=20261109-10';
-import {MouseCapture} from './mouse-capture.js?v=20261109-12';
+import {MouseCapture} from './mouse-capture.js?v=20261109-13';
 import {ropeSupport} from './rope-support.js?v=20261109-12';
 import {OriginalWater} from './original-water.js?v=20261109-11';
 import {EnhancedWorld} from './enhanced-world.js?v=20261109-10';
@@ -107,12 +107,22 @@ function setMusic(path){void audio.setMusic(path);}
 function heroVoice(){const n=hero.value==='Dama'?2+Math.floor(Math.random()*3):1+Math.floor(Math.random()*5);void audio.play(hero.value==='Dama'?`sounds/гульмоника/${n}.wav`:`sounds/гульмен/г${n}.wav`,.9,{voice:true});voiceTimer=30+Math.random()*30;}
 function showDialog(html){pause(false);$('hud').hidden=true;ui.showFrame(html);setMusic(menuMusic);}
 function closeDialog(){ui.hide();}
-const mouse=new MouseCapture(document,$('game'),state=>{
-  $('capture-mouse').hidden=state!=='available'&&state!=='drag';
+const mouse=new MouseCapture(document,$('game'),(state,reason)=>{
+  $('capture-mouse').hidden=state!=='drag'||mouse.waiting;
+  $('mouse-recovery').hidden=!mouse.waiting;
+  $('mouse-retry').disabled=state==='requesting';
+  $('mouse-retry').hidden=reason==='blocked'||reason==='unsupported';
+  $('mouse-recovery-status').textContent=state==='requesting'?'Запрашиваю захват мыши…':
+    reason==='blocked'||reason==='unsupported'?'Здесь браузер не разрешает захват мыши. Открой игру в обычном браузере или продолжи с обзором перетаскиванием.':
+    reason==='focus'?'Браузер не передал игре фокус. Кликни по игре для повтора. Если во встроенном окне это не помогает, открой игру в обычном браузере.':
+    reason==='denied'||reason==='timeout'?'Браузер не подтвердил захват. Можно повторить или продолжить без него.':
+    'Кликни по игре, чтобы захватить мышь. Игра на паузе.';
   $('game').dataset.mouseCapture=state;
-  if(state==='available'){shooting=false;aimHeld=false;drag=null;firePointer=null;keys.clear();toast('Кликни по игре, чтобы вернуть захват мыши.');}
-  if(state==='drag'&&running)toast('Захват недоступен. Обзор: зажми мышь и двигай или используй стрелки.');
+  $('game').dataset.mouseCaptureReason=reason??'';
+  if(mouse.waiting){shooting=false;aimHeld=false;drag=null;firePointer=null;keys.clear();}
 });
+function requestMouse(){if(running){if(!document.hasFocus())window.focus();$('game').focus({preventScroll:true});mouse.request();}}
+function playWithoutMouseCapture(){if(!running)return;keys.clear();mouse.useDrag();$('game').focus({preventScroll:true});toast('Для обзора зажми ПКМ и двигай мышь. Можно также использовать стрелки.');}
 function pause(show=true){running=false;shooting=false;aimHeld=false;drag=null;firePointer=null;keys.clear();mouse.stop();if(show&&loaded)pauseMenu();}
 function resume(){if(!loaded)return;if(hp<=0){deathMenu();return;}closeDialog();$('hud').hidden=false;running=true;keys.clear();lastFrame=performance.now();$('game').focus({preventScroll:true});$('shift-hint').textContent=usesOriginalPhysics()?'Shift — шаг':'Shift — бег';setMusic(gameMusic);if(matchMedia('(any-pointer:fine)').matches)mouse.start();}
 function menuScreen(id,options={}){pause(false);$('hud').hidden=true;ui.show(id,options);setMusic(menuMusic);}
@@ -214,7 +224,7 @@ function damage(amount){if(!running||hp<=0)return;hp=Math.max(0,hp-amount);damag
 function tracer(a,b,color=0xffdb8b){const g=new THREE.BufferGeometry().setFromPoints([a,b]);const mat=new THREE.LineBasicMaterial({color,transparent:true,opacity:.8});const line=new THREE.Line(g,mat);scene.add(line);effects.push({mesh:line,ttl:.09});}
 
 function shoot(){
-  if(!running||mouse.state==='available'||!weaponReady||pendingGrenade||player?.grenadeThrow?.active)return;
+  if(!running||mouse.waiting||!weaponReady||pendingGrenade||player?.grenadeThrow?.active)return;
   const w=weapons[weapon],modern=isEnhanced();let spread=0;
   if(modern){const shot=combat.tryFire(ammo);if(!shot.fired){if(shot.reason==='reload')reloadWeapon();else if(shot.reason==='empty'&&toastTimer<=0)toast('Нет патронов. Ищи припасы или магазин.');return;}ammo=shot.ammo;spread=shot.spread||0;if(weapon!==2)viewmodel?.flash();}
   else{if(shotTimer>0)return;if(ammo<w.cost){toast('Нет патронов. Ищи ящики или магазин.');shotTimer=.5;return;}shotTimer=w.rate;ammo-=w.cost;}
@@ -299,7 +309,7 @@ function updateMap(){if($('minimap').hidden)return;const ctx=$('minimap').getCon
 
 function frame(now){
   requestAnimationFrame(frame);const elapsed=Math.min(.25,(now-lastFrame)/1000),dt=Math.min(.04,elapsed);lastFrame=now;
-  if(!loaded||!scene||(!running&&ui.visible)||mouse.state==='available')return;const cpuStart=performance.now();
+  if(!loaded||!scene||(!running&&ui.visible)||mouse.waiting)return;const cpuStart=performance.now();
   if(running){
     const modern=isEnhanced(),classic=usesOriginalPhysics();voiceTimer-=dt;if(voiceTimer<=0)heroVoice();shotTimer-=dt;saveTimer+=dt;
     if(saveTimer>10){saveTimer=0;saveProgress();}if(keys.has('ArrowLeft'))yaw+=dt*1.8;if(keys.has('ArrowRight'))yaw-=dt*1.8;if(keys.has('ArrowUp'))pitch=Math.min(.9,pitch+dt);if(keys.has('ArrowDown'))pitch=Math.max(-1.1,pitch-dt);
@@ -327,7 +337,7 @@ function frame(now){
   if(fpsTime>1){Object.assign($('game').dataset,{fps:String(Math.round(frameCount/fpsTime)),cpuMs:(frameCPUTime/frameCount).toFixed(2),triangles:String(renderer.info.render.triangles),drawCalls:String(renderer.info.render.calls),level:String(level.id),position:position.toArray().map(n=>n.toFixed(2)).join(','),renderMode:graphics.mode,quality:graphics.quality,effectiveQuality:graphics.diagnostics.effectiveQuality,renderScale:String(graphics.diagnostics.renderScale),renderPasses:String(graphics.diagnostics.postprocessing?.passes||1),enhancedModels:String(enhancedWorld?.diagnostics.props||0),enhancedArchitecture:String(enhancedWorld?.diagnostics.architecture?.instances||0),enhancedCharacters:String(enhancedCharacters?.diagnostics.count||0),visibleCharacters:String(crowd?.stats.visibleActors||0),enhancedSurfaces:String((enhancedWorld?.diagnostics.surfaces||0)+(enhancedWorld?.diagnostics.landscape?.surfaces||0)),activeProjectiles:String(projectiles?.activeCount||0),grenadeThrow:player?.grenadeThrow?.active?(player.grenadeThrow.released?'recovery':'windup'):'idle',lootDrops:String(items.filter(i=>i.entry.dropped&&!i.collected).length),enhancedVegetation:String(enhancedWorld?.diagnostics.vegetation?.replacements||0),enhancedImportedProps:String(enhancedWorld?.diagnostics.importedProps?.replacements||0),sky:graphics.diagnostics.sky,originalWater:String(originalWater?.diagnostics.enabled||false),physics:usesOriginalPhysics()?'dce':'adapted'});frameCount=0;fpsTime=0;frameCPUTime=0;}
 }
 
-document.addEventListener('pointerdown',()=>{if(!audio.unlocked)audio.unlock();},true);
+document.addEventListener('pointerdown',e=>{if(!audio.unlocked)audio.unlock();if(running&&e.pointerType==='touch'&&mouse.waiting)mouse.useDrag();},true);
 document.addEventListener('keydown',e=>{
   if(!audio.unlocked)audio.unlock();
   if(e.target.isContentEditable||e.target.closest?.('input,select,textarea,[contenteditable="true"],[role="textbox"]'))return;
@@ -342,10 +352,15 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();if(running)pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden){if(running)pause();audio.pauseMusic();}else audio.resumeMusic();});
 $('game').addEventListener('pointerdown',e=>{
   if(!running)return;
-  if(e.pointerType==='mouse'&&(mouse.state==='available'||mouse.state==='requesting')){mouse.request();return;}
+  if(mouse.waiting)return;
   if(!mouse.locked){drag={id:e.pointerId,x:e.clientX,y:e.clientY};$('game').setPointerCapture?.(e.pointerId);}
   if(e.pointerType!=='touch'&&e.button===0){shooting=true;firePointer=e.pointerId;shoot();}
   if(e.button===2)aimHeld=true;
+});
+// Click follows the browser's normal pointer focus handling. The preceding
+// pointerdown was consumed while waiting, so re-capture cannot fire a round.
+$('game').addEventListener('click',()=>{
+  if(mouse.waiting&&mouse.reason!=='blocked'&&mouse.reason!=='unsupported')requestMouse();
 });
 document.addEventListener('mouseup',e=>{if(e.button===0){shooting=false;firePointer=null;}if(e.button===2)aimHeld=false;});
 function releasePointer(e){if(e.button===2)aimHeld=false;if(e.pointerId===firePointer&&e.button!==2){shooting=false;firePointer=null;}if(e.pointerId===drag?.id&&(!e.buttons||e.type!=='pointerup'))drag=null;}
@@ -354,7 +369,7 @@ $('game').addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('pointermove',e=>{if(!running)return;lookX=e.movementX||0;lookY=e.movementY||0;if(mouse.locked){yaw-=e.movementX*.0025*sensitivity;pitch=Math.max(-1.1,Math.min(.9,pitch-e.movementY*.0025*sensitivity*(invertMouse?-1:1)));}else if(drag?.id===e.pointerId){yaw-=(e.clientX-drag.x)*.004*sensitivity;pitch=Math.max(-1.1,Math.min(.9,pitch-(e.clientY-drag.y)*.004*sensitivity*(invertMouse?-1:1)));drag.x=e.clientX;drag.y=e.clientY;}});
 document.querySelectorAll('[data-key]').forEach(button=>{button.onpointerdown=e=>{e.preventDefault();keys.add(button.dataset.key);button.setPointerCapture(e.pointerId);};button.onpointerup=button.onpointercancel=()=>keys.delete(button.dataset.key);});$('touch-fire').onpointerdown=e=>{e.preventDefault();shooting=true;firePointer=e.pointerId;e.target.setPointerCapture(e.pointerId);shoot();};$('touch-fire').onpointerup=$('touch-fire').onpointercancel=releasePointer;
 
-$('capture-mouse').onclick=()=>{if(running){$('game').focus({preventScroll:true});mouse.request();}};$('camera-switch').onclick=()=>setCamera(!thirdPerson);$('touch-reload').onclick=reloadWeapon;$('touch-aim').onclick=()=>{aimHeld=!aimHeld;$('touch-aim').setAttribute('aria-pressed',String(aimHeld));};$('pause-button').onclick=()=>pause();$('briefing-open').onclick=()=>{comicEnding=false;comicIndex=0;briefings();};$('hero-gulman').onclick=()=>hero.select('Gulman');$('hero-switch').onclick=()=>hero.select('Dama');$('sound-unlock').onclick=()=>{audio.muted=false;audio.unlock();};
+$('capture-mouse').onclick=$('mouse-retry').onclick=requestMouse;$('mouse-drag').onclick=playWithoutMouseCapture;$('camera-switch').onclick=()=>setCamera(!thirdPerson);$('touch-reload').onclick=reloadWeapon;$('touch-aim').onclick=()=>{aimHeld=!aimHeld;$('touch-aim').setAttribute('aria-pressed',String(aimHeld));};$('pause-button').onclick=()=>pause();$('briefing-open').onclick=()=>{comicEnding=false;comicIndex=0;briefings();};$('hero-gulman').onclick=()=>hero.select('Gulman');$('hero-switch').onclick=()=>hero.select('Dama');$('sound-unlock').onclick=()=>{audio.muted=false;audio.unlock();};
 async function ready(){await ui.init();$('resource-error').hidden=true;for(const name of ['health','ammo','money'])$(name+'-icon').src=assets.url(ui.data.hud[name].image);$('crosshair').src=assets.url(ui.data.hud.crosshairRed.image);$('loading').style.setProperty('--loading-frame',`url("${assets.url(ui.data.frames.default)}")`);updateHeroName();mainMenu();updateSoundStatus();}
 $('asset-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;$('status').textContent='Распаковка ресурсов…';try{await assets.importZip(file);await ready();}catch(error){$('status').textContent='Ошибка импорта: '+error.message;}};
 try{await assets.init();await ready();}catch(error){$('resource-error').hidden=false;$('status').textContent='Ресурсы не загрузились: '+error.message;$('import-panel').hidden=false;console.warn(error);}

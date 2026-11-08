@@ -31,6 +31,10 @@ a{color:#e4d091}
 .hero-choices{display:flex;gap:2px}.hero-choices kbd{font:inherit;opacity:.6;margin-left:3px}#hud .hero-choices button[aria-pressed="true"]{border-color:#e6d59b;background:#51452a;color:#fff2bc}
 #hud button{pointer-events:auto;border:1px solid #999d6280;border-radius:0;padding:5px 9px;color:#e3ed87;background:#0008;font:14px Georgia,'Times New Roman',serif;text-shadow:1px 1px #000}
 #hud button:hover{color:#fff9b3;background:#171805d9}
+#mouse-recovery{position:absolute;left:50%;top:43%;transform:translate(-50%,-50%);width:min(420px,calc(100% - 28px));padding:14px 16px;border:1px solid #999d6280;background:#16170ff5;color:#f3e8bb;pointer-events:auto;text-align:center;line-height:1.35}
+#mouse-recovery p{margin:0 0 12px}
+#mouse-recovery div{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}
+#hud #mouse-recovery button{padding:8px 12px}
 #crosshair,#hitmarker{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 #crosshair{width:32px;height:32px}
 #hitmarker{font:34px Georgia,serif;color:#ffe197;opacity:0}
