@@ -30,6 +30,18 @@ test('grenade moves along an arc and explodes at its original fuse, even without
   assert.equal(f.impacts.length,1);assert.equal(f.impacts[0].expired,true);assert.equal(f.impacts[0].splash,6);assert.equal(p.mesh.visible,false);assert.ok(f.system.effects.some(e=>e.ttl>0),'the delayed explosion still emits sparks');f.system.dispose();
 });
 
+test('classic grenade reflects off the first wall, loses speed, then detonates on the fuse',()=>{
+  const f=fixture(wallAt(3));
+  f.system.fire({weapon:2,origin:v(0,5,0),direction:v(1,0,0),classicGrenade:true});
+  f.system.update(.35);const p=f.system.projectiles[0];
+  assert.equal(f.impacts.length,0);assert.ok(p.mesh.visible&&p.velocity.x<0);
+  assert.ok(Math.abs(p.classicSpeed-1.7424)<1e-8);
+  assert.ok(p.position.x>2.7&&p.position.x<3);
+  f.system.update(1.15);assert.equal(f.impacts.length,1);
+  assert.equal(f.impacts[0].expired,true);assert.equal(f.impacts[0].splash,6);
+  f.system.dispose();
+});
+
 test('the real original grenade stays Y-up, 18 cm tall and rotates about its centre without editing cached resources',async()=>{
   const data=JSON.parse(await readFile(new URL('../assets/models/granate-a21ec8b8a246.json',import.meta.url),'utf8'));
   assert.equal(data.coordinateSystem,'y-up');assert.equal(data.originalCoordinateSystem,'z-up');

@@ -37,7 +37,7 @@ export class WorldCollision {
     return this;
   }
 
-  setWorld(group) {
+  setWorld(group, { support = [], exclude } = {}) {
     this.clear();
     group.updateWorldMatrix(true, true);
     group.traverse(object => {
@@ -51,11 +51,12 @@ export class WorldCollision {
           .fromBufferAttribute(attribute, index ? index.getX(i + offset) : i + offset)
           .applyMatrix4(object.matrixWorld));
         const triangle = new Triangle(...points);
-        if (!points.every(p => Number.isFinite(p.x + p.y + p.z)) || triangle.getArea() < 1e-10) continue;
+        if (!points.every(p => Number.isFinite(p.x + p.y + p.z)) || triangle.getArea() < 1e-10 || exclude?.(points)) continue;
         this.tree.addTriangle(triangle);
         this.triangleCount++;
       }
     });
+    for (const triangle of support) { this.tree.addTriangle(triangle); this.triangleCount++; }
     if (this.triangleCount) this.tree.build();
     return this;
   }

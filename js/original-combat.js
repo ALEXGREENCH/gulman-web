@@ -123,14 +123,14 @@ export class OriginalProjectiles {
   _glow(position,{count=1,kind=0,size=.35,life=.16,speed=0}={}){
     for(let i=0;i<count;i++){const effect=this.effects[this.effectCursor++%this.effects.length];effect.position.copy(position);effect.velocity.set((finiteRandom(this.random)-.5)*speed,(finiteRandom(this.random)-.3)*speed,(finiteRandom(this.random)-.5)*speed);effect.size=size;effect.kind=kind;effect.ttl=effect.life=life;}
   }
-  fire({weapon=0,origin,direction,owner='player',damage,spread=0}={}){
+  fire({weapon=0,origin,direction,owner='player',damage,spread=0,classicGrenade=false}={}){
     if(this.disposed||!origin?.isVector3||!direction?.isVector3||direction.lengthSq()<1e-10)return 0;
     weapon=Math.max(0,Math.min(3,Math.floor(weapon)));const spec=ORIGINAL_PROJECTILE_WEAPONS[weapon];
     // A hand-thrown grenade has no firearm muzzle flash.
     if(weapon!==2)this._glow(origin,{kind:1,size:weapon===1?.65:.45,life:.065});
     for(let i=0;i<spec.count;i++){
       const p=this.projectiles[this.cursor++%this.capacity];if(p.mesh)p.mesh.visible=false;
-      p.active=true;p.position.copy(origin);p.velocity.copy(direction).normalize();
+      p.active=true;p.position.copy(origin);p.velocity.copy(direction).normalize();p.classicGrenade=weapon===2&&classicGrenade;p.classicSpeed=spec.speed;
       const jitter=spread+(weapon===3?.026:0);if(jitter)p.velocity.add(new THREE.Vector3(finiteRandom(this.random)-.5,finiteRandom(this.random)-.5,finiteRandom(this.random)-.5).multiplyScalar(jitter)).normalize();
       // Explicit damage is total per trigger, so a balanced big-gun blast is
       // not accidentally multiplied by its original eight projectile count.
@@ -160,7 +160,10 @@ export class OriginalProjectiles {
     let remaining=Math.min(dt,5);
     while(remaining>1e-8){const step=Math.min(remaining,1/60);remaining-=step;
       for(const p of this.projectiles){if(!p.active)continue;const spec=ORIGINAL_PROJECTILE_WEAPONS[p.weapon],seconds=Math.min(step,spec.life-p.age);
-        const displacement=p.velocity.clone().multiplyScalar(seconds);displacement.y-=spec.gravity*seconds*seconds*.5;const distance=displacement.length();
+        // Original Move uses scalar speed × direction and subtracts .9 per
+        // second from direction.y. A bounce reduces both speed and drop rate.
+        const gravity=p.classicGrenade?p.classicSpeed*.9:spec.gravity;
+        const displacement=p.velocity.clone().multiplyScalar(seconds);displacement.y-=gravity*seconds*seconds*.5;const distance=displacement.length();
         let hit=null;if(distance>1e-9){const direction=displacement.clone().divideScalar(distance),wall=this.world?.ray?.(p.position,direction,distance);if(wall)hit={distance:wall.distance,position:wall.position,normal:wall.normal};
           this._ray.set(p.position,direction);
           const targets=p.owner==='player'?actors:(playerPosition?[{pos:playerPosition,player:true}]:[]);
@@ -168,8 +171,24 @@ export class OriginalProjectiles {
             if(this._ray.intersectSphere(this._sphere,this._point)){const d=this._point.distanceTo(p.position);if(d<=distance&&(!hit||d<hit.distance)){hit={actor:actor.player?'player':actor,distance:d,position:this._point.clone(),normal:this._point.clone().sub(this._center).normalize()};}}
           }
         }
-        p.age+=seconds;p.velocity.y-=spec.gravity*seconds;
-        if(hit){p.position.copy(hit.position);this._impact(p,hit);continue;}
+        p.age+=seconds;p.velocity.y-=gravity*seconds;
+        if(hit){
+          p.position.copy(hit.position);
+          if(p.classicGrenade&&!hit.actor&&hit.normal?.lengthSq()>0){
+            // Game.dll 0x52C880 and 0x52CA7E, then the 100-unit/s
+            // detonation threshold in 0x52BEA0. Keep a tiny gap instead
+            // of restarting the next sweep exactly on the same triangle.
+            const speed=p.classicSpeed*.22*.66;
+            p.classicSpeed=speed;
+            if(speed>1&&p.age+1e-8<spec.life){
+              p.velocity.normalize().reflect(hit.normal).multiplyScalar(speed);
+              p.position.addScaledVector(hit.normal,.015);
+              p.mesh?.position.copy(p.position);
+              continue;
+            }
+          }
+          this._impact(p,hit);continue;
+        }
         p.position.add(displacement);if(p.mesh&&p.weapon===2){p.mesh.position.copy(p.position);p.mesh.rotation.x+=seconds*7;p.mesh.rotation.z+=seconds*4;}
         p.trail+=seconds;if(p.trail>=.04&&p.weapon!==2){p.trail=0;this._glow(p.position,{kind:spec.color==='blue'?0:1,size:spec.size*.3,life:.1});}
         if(p.age+1e-8>=spec.life)this._impact(p,null,true);

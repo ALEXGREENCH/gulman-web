@@ -194,11 +194,11 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     restoreThrowPose(); throwTime = -1; throwReleased = throwPending = false;
     if (weaponRoot) weaponRoot.visible = throwWeaponVisibility;
   }
-  function beginGrenadeThrow() {
+  function beginGrenadeThrow({ immediate = false } = {}) {
     if (disposed || throwTime >= 0) return false;
-    throwTime = 0; throwReleased = throwPending = false;
+    throwTime = immediate ? throwRelease : 0; throwReleased = immediate; throwPending = false;
     throwWeaponVisibility = weaponRoot?.visible ?? true;
-    if (weaponRoot) weaponRoot.visible = true;
+    if (weaponRoot) weaponRoot.visible = !immediate;
     return true;
   }
   function consumeGrenadeRelease(target = new THREE.Vector3()) {

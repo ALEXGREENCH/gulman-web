@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import { WorldCollision } from '../js/collision.js';
 import { mergeWorldMeshes } from '../js/merge-world.js';
+import { ropeSupport } from '../js/rope-support.js';
 import { maxSlopeForLevel, jumpSpeedForLevel, selectInteraction } from '../js/progression.js';
 
 const root = new URL('../', import.meta.url), manifest = JSON.parse(await readFile(new URL('assets/manifest.json', root), 'utf8'));
@@ -15,7 +16,7 @@ async function levelWorld(id, maxSlope = maxSlopeForLevel(id)) {
   const materials = Object.fromEntries(Object.keys(data.materials).map(name => [name, new THREE.MeshBasicMaterial()]));
   const fallback = new THREE.MeshBasicMaterial(), group = mergeWorldMeshes(data, materials, fallback);
   group.scale.setScalar(.01);
-  const world = new WorldCollision({ radius: .28, height: 1.65, stepHeight: .45, maxSlope }).setWorld(group);
+  const world = new WorldCollision({ radius: .28, height: 1.65, stepHeight: .45, maxSlope }).setWorld(group, ropeSupport(id,data));
   return { level, world, modelSha256: createHash('sha256').update(source).digest('hex'), dispose() { world.clear(); for (const child of group.children) child.geometry.dispose(); for (const material of Object.values(materials)) material.dispose(); fallback.dispose(); } };
 }
 function actor(world, start, jumpSpeed = 8, dt = 1 / 60) {
