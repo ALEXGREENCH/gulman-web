@@ -6,20 +6,26 @@ import {CrowdRenderer} from './crowd.js';
 import {OriginalUI} from './original-ui.js';
 import {AudioManager} from './audio.js';
 import {createPlayerChoice} from './player-choice.js';
-import {GraphicsManager} from './graphics.js';
+import {GraphicsManager} from './graphics.js?v=20261108-4';
+import {CombatController} from './combat.js?v=20261108-4';
+import {ProceduralViewmodel} from './viewmodel.js?v=20261108-4';
+import {MotionController} from './motion.js?v=20261108-4';
+import {CombatFX} from './combat-fx.js?v=20261108-4';
 
 const $=id=>document.getElementById(id);
 const assets=new Assets(), keys=new Set();
 const locations=['Италия · Пляж','Италия · Отель','Греция · Акрополь','Голландия','Индия · Тадж-Махал','Франция','Мексика · Чичен-Ица','Россия · Красная площадь','Финальная схватка'];
 const tasks=['Найди письмо связиста','Обезвредь бомбу','Найди статую Венеры','Найди картину','Найди древнюю книгу','Найди Мону Лизу','Найди реликвию майя','Собери две реликвии','Собери четыре артефакта'];
 const weapons=[{name:'ПИСТОЛЕТ',damage:34,rate:.3,cost:1,sound:'sounds/weapons/pistol-01.wav'},{name:'АВТОМАТ',damage:24,rate:.1,cost:1,sound:'sounds/weapons/aug-1.wav'},{name:'ГРАНАТА',damage:120,rate:1,cost:5,splash:5,sound:'sounds/weapons/gl_explodesmoke.wav'},{name:'БИГГАН',damage:85,rate:.65,cost:3,splash:2,sound:'sounds/weapons/sg_mediumexplode.wav'}];
-let renderer,scene,camera,world,worldMesh,player,level,actors=[],items=[],hazards=[],effects=[],crowd;
+let renderer,scene,camera,world,worldMesh,player,level,actors=[],items=[],hazards=[],effects=[],crowd,combatFX,viewmodel;
 let running=false,loaded=false,busy=false,thirdPerson=true,shooting=false,grounded=false;
 let yaw=0,pitch=-.08,hp=100,ammo=120,money=0,weapon=0,collected=0,totalKeys=0,kills=0,shotTimer=0,toastTimer=0,damageTimer=0,hitTimer=0,saveTimer=0;
 const position=new THREE.Vector3(),velocity=new THREE.Vector3(),spawn=new THREE.Vector3();
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),tmp=new THREE.Vector3();
 let lastFrame=performance.now(),frameCount=0,fpsTime=0;
-let drag=null,comicIndex=0,mapBounds,firePointer=null;
+let drag=null,comicIndex=0,mapBounds,firePointer=null,aimHeld=false,crouchPressed=false,lookX=0,lookY=0;
+const combat=new CombatController(),motion=new MotionController();
+let cameraPreference=null;try{cameraPreference=localStorage.getItem('gulman-camera');}catch{}
 let saved=null;try{saved=JSON.parse(localStorage.getItem('gulman-web-save-v1'));}catch{}
 
 let toastHandle;
@@ -30,9 +36,31 @@ let sensitivity=1,invertMouse=false,voiceTimer=25,comicEnding=false;
 try{const settings=JSON.parse(localStorage.getItem('gulman-controls')||'{}');sensitivity=settings.sensitivity||1;invertMouse=!!settings.invertMouse;}catch{}
 const audio=new AudioManager(path=>assets.sound(path),{onError:message=>toast(message),onStateChange:updateSoundStatus});
 const ui=new OriginalUI({root:$('menu'),assets,onCommand:menuCommand});
-const graphics=new GraphicsManager({onChange:()=>{}});
+const graphics=new GraphicsManager({onChange:syncGraphics});
 graphics.applyAssets(assets);
+thirdPerson=cameraPreference?cameraPreference==='third':graphics.mode!=='enhanced';
+let lastGraphicsMode=graphics.mode;
 const hero=createPlayerChoice({assets,getPlayer:()=>player,setPlayer:value=>{player=value;},getScene:()=>loaded?scene:null,getPosition:()=>position,getYaw:()=>yaw,getWeapon:()=>weapon,onChange:name=>{updateHeroName(name);if(loaded){graphics.applyScene(scene,player);heroVoice();}},onError:message=>toast(message)});
+
+function isEnhanced(){return graphics.mode==='enhanced';}
+function syncGraphics(){
+  combatFX?.setEnabled(isEnhanced());
+  if(lastGraphicsMode!==graphics.mode){combat.reset({ammo,weapon});motion.prepare(player);motion.reset();world&&(world.height=1.65);if(!cameraPreference)thirdPerson=!isEnhanced();}
+  lastGraphicsMode=graphics.mode;
+  if(isEnhanced())viewmodel?.setWeapon(weapon);
+  viewmodel?.setVisible(isEnhanced()&&!thirdPerson);
+  $('enhanced-controls').hidden=!isEnhanced();
+  $('game').dataset.renderMode=graphics.mode;if(loaded)updateHUD();
+}
+function setCamera(third){thirdPerson=third;cameraPreference=third?'third':'first';try{localStorage.setItem('gulman-camera',cameraPreference);}catch{}viewmodel?.setVisible(isEnhanced()&&!third);$('camera-switch').textContent=third?'Вид: 3':'Вид: 1';}
+function reloadWeapon(){if(!running||!isEnhanced())return;if(combat.reload(ammo)){void audio.play('sounds/weapons/ricstone01.wav',.15,{duration:.12});updateCombatHUD();}}
+function updateCombatHUD(){
+  const modern=isEnhanced();$('enhanced-controls').hidden=!modern;$('reload-meter').hidden=!modern||!combat.reloading;
+  $('reload-progress').style.width=(combat.reloadProgress*100)+'%';
+  if(modern){const cost=weapons[weapon].cost;$('ammo-value').textContent=`${Math.floor(combat.magazine/cost)} / ${Math.floor(combat.reserve(ammo)/cost)}`;$('combat-state').textContent=combat.reloading?'ПЕРЕЗАРЯДКА':motion.sliding?'ПОДКАТ':ammo<cost?'НЕТ ПАТРОНОВ':combat.magazine<cost?'R — ПЕРЕЗАРЯДИТЬ':'';$('crosshair').style.opacity=String(1-combat.ads*.8);}
+  else{$('combat-state').textContent='';$('crosshair').style.opacity='1';}
+  $('game').dataset.magazine=String(combat.magazine);$('game').dataset.reloading=String(combat.reloading);$('game').dataset.ads=combat.ads.toFixed(2);
+}
 function updateHeroName(name=hero.value){const label=name==='Dama'?'ГУЛЬМОНИКА':'ГУЛЬМЭН';$('hero-name').textContent=label;$('game').dataset.hero=name;$('hero-switch').title=(name==='Dama'?'Гульмэн — F1':'Гульмоника — F2');}
 function updateSoundStatus(){const state=audio.diagnostics;$('game').dataset.audio=state.state;$('game').dataset.music=state.musicPlaying?'playing':'paused';const output=$('audio-status');if(output)output.textContent=state.lastError||state.stateLabel+(state.musicPlaying?' · музыка играет':'');$('sound-unlock').hidden=state.unlocked||state.muted;$('sound-unlock').textContent=state.lastError?'Повторить включение звука':'Включить звук';}
 function playSound(path,volume=.8){void audio.play(path,volume);}
@@ -40,7 +68,7 @@ function setMusic(path){void audio.setMusic(path);}
 function heroVoice(){const n=hero.value==='Dama'?2+Math.floor(Math.random()*3):1+Math.floor(Math.random()*5);void audio.play(hero.value==='Dama'?`sounds/гульмоника/${n}.wav`:`sounds/гульмен/г${n}.wav`,.9,{voice:true});voiceTimer=30+Math.random()*30;}
 function showDialog(html){pause(false);$('hud').hidden=true;ui.showFrame(html);setMusic(menuMusic);}
 function closeDialog(){ui.hide();}
-function pause(show=true){running=false;shooting=false;keys.clear();if(document.pointerLockElement)document.exitPointerLock();if(show&&loaded)pauseMenu();}
+function pause(show=true){running=false;shooting=false;aimHeld=false;keys.clear();if(document.pointerLockElement)document.exitPointerLock();if(show&&loaded)pauseMenu();}
 function resume(){if(!loaded)return;if(hp<=0){deathMenu();return;}closeDialog();$('hud').hidden=false;running=true;keys.clear();lastFrame=performance.now();$('game').focus();setMusic(gameMusic);try{const p=$('game').requestPointerLock?.();p?.catch(()=>toast('Обзор: зажми мышь и двигай. Стрелки тоже поворачивают камеру.'));}catch{}}
 function menuScreen(id,options={}){pause(false);$('hud').hidden=true;ui.show(id,options);setMusic(menuMusic);}
 function pauseMenu(){if(hp<=0){deathMenu();return;}mainMenu();}
@@ -48,25 +76,32 @@ function mainMenu(){menuScreen('main',{hotspotLabels:{EVEL1:loaded&&hp>0?'Про
 function chooseLevel(){menuScreen('levels',{extras:'<button data-command="EVEL9">9. Финальная схватка</button>',extrasRect:[190,588,390,48],extrasClass:'original-toolbar'});}
 function about(){showDialog('<h2>Гульмэн 3D — веб-версия</h2><p>Святослав Гуляев и команда оригинальной игры. Оригинальные уровни, модели, анимации, меню, иллюстрации и звук.</p><p>Движение и игровая логика восстановлены для браузера. Настройки и дополнительные кнопки адаптированы для веб-версии.</p><p><a href="https://www.gulman.ru/gul1.html" target="_blank" rel="noopener">Сайт автора</a></p>');}
 function saveControls(){try{localStorage.setItem('gulman-controls',JSON.stringify({sensitivity,invertMouse}));}catch{}}
-function help(){menuScreen('controls',{extras:`<div class="control-table"><b>W A S D</b><span>Движение</span><b>Мышь / ← →</b><span>Обзор</span><b>Shift / Space</b><span>Бег / прыжок</span><b>ЛКМ / E</b><span>Стрелять / подобрать</span><b>1 · 2 · 3 · 4</b><span>Оружие</span><b>F1 / F2</b><span>Гульмэн / Гульмоника</span><b>C / M / Esc</b><span>Камера / карта / меню</span></div><label>Герой<select id="hero-choice"><option value="Gulman">Гульмэн — F1</option><option value="Dama">Гульмоника — F2</option></select></label><label>Чувствительность мыши <input id="sensitivity" type="range" min="0.3" max="2.5" step="0.1" value="${sensitivity}"></label><label><input id="invert-mouse" type="checkbox" ${invertMouse?'checked':''}>Инверсия мыши</label>`,extrasRect:[350,200,430,450]});$('hero-choice').value=hero.value;$('hero-choice').onchange=e=>hero.select(e.target.value);$('sensitivity').oninput=e=>{sensitivity=+e.target.value;saveControls();};$('invert-mouse').onchange=e=>{invertMouse=e.target.checked;saveControls();};}
+function help(){menuScreen('controls',{extras:`<div class="control-table"><b>W A S D</b><span>Движение</span><b>Мышь / ← →</b><span>Обзор</span><b>Shift / Space</b><span>Бег / прыжок</span><b>ЛКМ / E</b><span>Стрелять / подобрать</span><b>ПКМ / R</b><span>Прицел / перезарядка (Enhanced)</span><b>Ctrl</b><span>Присесть; на бегу — подкат</span><b>1 · 2 · 3 · 4</b><span>Оружие</span><b>F1 / F2</b><span>Гульмэн / Гульмоника</span><b>C / M / Esc</b><span>Камера / карта / меню</span></div><label>Камера<select id="camera-choice"><option value="first">От первого лица</option><option value="third">От третьего лица</option></select></label><label>Герой<select id="hero-choice"><option value="Gulman">Гульмэн — F1</option><option value="Dama">Гульмоника — F2</option></select></label><label>Чувствительность мыши <input id="sensitivity" type="range" min="0.3" max="2.5" step="0.1" value="${sensitivity}"></label><label><input id="invert-mouse" type="checkbox" ${invertMouse?'checked':''}>Инверсия мыши</label>`,extrasRect:[350,200,430,450]});$('camera-choice').value=thirdPerson?'third':'first';$('camera-choice').onchange=e=>setCamera(e.target.value==='third');$('hero-choice').value=hero.value;$('hero-choice').onchange=e=>hero.select(e.target.value);$('sensitivity').oninput=e=>{sensitivity=+e.target.value;saveControls();};$('invert-mouse').onchange=e=>{invertMouse=e.target.checked;saveControls();};}
 function soundMenu(){menuScreen('audio',{extras:`<label><input type="checkbox" id="sound-enabled" ${audio.muted?'':'checked'}>Включить звук</label><label>Музыка <output id="music-volume-value">${Math.round(audio.musicVolume*100)}%</output><input id="music-volume" aria-label="Громкость музыки" type="range" min="0" max="100" value="${audio.musicVolume*100}"></label><label>Эффекты и голоса <output id="effects-volume-value">${Math.round(audio.effectsVolume*100)}%</output><input id="effects-volume" aria-label="Громкость эффектов" type="range" min="0" max="100" value="${audio.effectsVolume*100}"></label><button data-command="TEST_SOUND">Проверить звук</button><p id="audio-status" role="status"></p>`});$('sound-enabled').onchange=e=>{audio.muted=!e.target.checked;audio.unlock();};for(const name of ['music','effects'])$(name+'-volume').oninput=e=>{audio[name+'Volume']=+e.target.value/100;$(name+'-volume-value').textContent=e.target.value+'%';};updateSoundStatus();}
-function graphicsMenu(){menuScreen('graphics',{extras:`<label>Режим графики<select id="graphics-mode"><option value="potato">Калькулятор — минимум нагрузки</option><option value="original">Оригинал</option><option value="enhanced">Enhanced — улучшенная картинка</option></select></label><label><input id="light-effects" type="checkbox" ${graphics.lighting?'checked':''}>Лёгкие эффекты света и тени</label><p>Enhanced: чётче текстуры и иллюстрации, мягкое освещение без трассировки лучей.</p><p>«Калькулятор» снижает разрешение и нагрузку.</p><output id="graphics-status"></output>`});$('graphics-mode').value=graphics.mode;$('light-effects').onchange=e=>graphics.setLighting(e.target.checked,{renderer,scene,player});$('graphics-mode').onchange=e=>{graphics.setMode(e.target.value,{renderer,scene,player});$('graphics-status').textContent='Настройки применены';};}
+function graphicsMenu(){
+  menuScreen('graphics',{extras:`<label>Режим<select id="graphics-mode"><option value="potato">Калькулятор</option><option value="original">Оригинал</option><option value="enhanced">Enhanced — современный рендер</option></select></label><label>Качество Enhanced<select id="graphics-quality"><option value="auto">Авто — по производительности</option><option value="high">Высокое</option><option value="low">Лёгкое</option></select></label><label><input id="light-effects" type="checkbox" ${graphics.lighting?'checked':''}>Объёмный свет и тени</label><p>Материалы, отражённый свет, тени, свечение и сглаживание.</p><output id="graphics-status" role="status"></output>`,extrasRect:[350,210,420,435]});
+  $('graphics-mode').value=graphics.mode;$('graphics-quality').value=graphics.quality;
+  const state=()=>{$('graphics-status').textContent=graphics.mode==='enhanced'?'Enhanced включён':'Исходная графика';};
+  $('light-effects').onchange=e=>{graphics.setLighting(e.target.checked,{renderer,scene,player});state();};
+  $('graphics-mode').onchange=e=>{graphics.setMode(e.target.value,{renderer,scene,player});state();};
+  $('graphics-quality').onchange=e=>{graphics.setQuality(e.target.value,{renderer,scene,player});state();};
+}
 function shop(){menuScreen('shop',{extras:`<p>Баланс: $${money}</p><p>Гранаты: 20 патронов — $25<br>БигГан: 60 патронов — $50</p><button data-command="BUY_HEALTH">Здоровье — $30</button>`,extrasRect:[735,135,265,320],extrasClass:'shop-stock'});}
 function buy(kind){const cost=kind===2?25:kind===3?50:30;if(money<cost){shop();const p=document.createElement('p');p.textContent='Не хватает денег';ui.extrasElement.append(p);return;}money-=cost;if(kind===-1)hp=100;else{ammo+=kind===2?20:60;changeWeapon(kind);}saveProgress();updateHUD();shop();}
 function briefings(ending=false){if(ending)comicEnding=true;const pages=(ui.data.comics[String(level.id)]||[]).filter(p=>comicEnding?p.terminal:!p.terminal);if(!pages.length){resume();return;}comicIndex=Math.min(comicIndex,pages.length-1);const page=pages[comicIndex];pause(false);$('hud').hidden=true;ui.showFrame('',{backCommand:null});ui.stage.classList.add('comic-stage');ui.setComicMode();ui.stage.replaceChildren();const art=document.createElement('img');art.className='comic-art';art.src=assets.url(page.image);art.alt='Оригинальный комикс: миссия '+level.id+', кадр '+(comicIndex+1);ui.stage.append(art);if(page.text){const text=document.createElement('img');text.className='comic-text';text.src=assets.url(page.text);text.alt='Текст оригинального комикса';ui.stage.append(text);}const nav=document.createElement('div');nav.className='comic-controls';nav.innerHTML=`<button data-command="COMIC_PREV" ${comicIndex?'':'disabled'}>←</button><span>${comicIndex+1} / ${pages.length}</span><button data-command="COMIC_NEXT">${comicIndex<pages.length-1?'Далее →':comicEnding?'В меню':'В игру →'}</button>${comicEnding?'':'<button data-command="RESUME">Пропустить</button>'}${page.characterSelection?'<button data-command="HERO_GULMAN">F1 — Гульмэн</button><button data-command="HERO_DAMA">F2 — Гульмоника</button>':''}`;ui.root.append(nav);nav.querySelector('button:not(:disabled)')?.focus();setMusic(menuMusic);}
 function menuCommand(command){audio.unlock();if(command==='ESC'||command==='MENU_BACK'){if(['audio','graphics','controls'].includes(ui.currentMenu))menuScreen('settings');else if(ui.currentMenu==='main'&&loaded&&hp>0)resume();else mainMenu();return;}if(command==='EVEL1'&&ui.currentMenu==='main'){if(loaded&&hp>0)resume();else loadLevel(1);return;}if(/^EVEL[1-9]$/.test(command)){loadLevel(+command.slice(4));return;}const commands={CONTINUE:()=>loaded&&hp>0?resume():loadLevel(saved?.level||1,true),'ЗАГРУЗКА':chooseLevel,'НАСТРОЙКИ':()=>menuScreen('settings'),'АВТОРЫ':()=>menuScreen('credits',{extras:'<button data-command="ABOUT">О веб-версии</button>',extrasRect:[680,700,290,48],extrasClass:'original-toolbar'}),'ВЫХОД':()=>menuScreen('exit'),'ГРАФИКА':graphicsMenu,'ЗВУКИ':soundMenu,'УПРАВЛЕНИЕ':help,'ГЛАВНОЕ МЕНЮ':()=>['audio','graphics','controls'].includes(ui.currentMenu)?menuScreen('settings'):mainMenu(),'ВЫХОД=ДА':()=>{pause(false);showDialog('<h2>Игра завершена</h2><p>Прогресс сохранён. Эту вкладку можно закрыть.</p><button data-command="MAIN">В главное меню</button>');audio.pauseMusic();},'В=ИГРУ':resume,ReStart:()=>loadLevel(level?.id||1),MAIN:mainMenu,ABOUT:about,RESUME:resume,TEST_SOUND:()=>audio.unlock().then(ok=>{if(ok)heroVoice();}),HERO_GULMAN:()=>hero.select('Gulman'),HERO_DAMA:()=>hero.select('Dama'),'ПАТРОНЫ>3>':()=>buy(2),'ПАТРОНЫ>4>':()=>buy(3),BUY_HEALTH:()=>buy(-1),COMIC_PREV:()=>{comicIndex--;briefings();},COMIC_NEXT:()=>{const pages=(ui.data.comics[String(level.id)]||[]).filter(p=>comicEnding?p.terminal:!p.terminal);if(comicIndex<pages.length-1){comicIndex++;briefings();}else if(comicEnding){comicEnding=false;mainMenu();}else{resume();heroVoice();}}};commands[command]?.();}
 
-function initRenderer(){if(renderer)return;renderer=new THREE.WebGLRenderer({canvas:$('game'),antialias:false,powerPreference:'high-performance'});graphics.applyRenderer(renderer);renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.setClearColor(0x9caeaa);camera=new THREE.PerspectiveCamera(67,innerWidth/innerHeight,.08,1000);world=new WorldCollision({radius:.28,height:1.65,stepHeight:.45});window.addEventListener('resize',()=>{graphics.applyRenderer(renderer);renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();});$('game').addEventListener('webglcontextlost',e=>{e.preventDefault();pause(false);showDialog('<h2>Графический контекст потерян</h2><p>Обнови страницу. Сохранение текущего уровня останется на устройстве.</p>');});requestAnimationFrame(frame);}
+function initRenderer(){if(renderer)return;renderer=new THREE.WebGLRenderer({canvas:$('game'),antialias:false,powerPreference:'high-performance'});graphics.applyRenderer(renderer);renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.setClearColor(0x9caeaa);camera=new THREE.PerspectiveCamera(67,innerWidth/innerHeight,.08,1000);world=new WorldCollision({radius:.28,height:1.65,stepHeight:.45});viewmodel=new ProceduralViewmodel({assets,onError:message=>toast(String(message))});camera.add(viewmodel.group);window.addEventListener('resize',()=>{graphics.applyRenderer(renderer);renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();graphics.resize(innerWidth,innerHeight);});$('game').addEventListener('webglcontextlost',e=>{e.preventDefault();pause(false);showDialog('<h2>Графический контекст потерян</h2><p>Обнови страницу. Сохранение текущего уровня останется на устройстве.</p>');});requestAnimationFrame(frame);}
 async function loadLevel(id,restore=false){if(busy||!assets.manifest)return;busy=true;pause(false);closeDialog();$('loading').hidden=false;$('loading-title').textContent=locations[id-1];$('loading-status').textContent='Оригинальная геометрия и текстуры…';$('menu').hidden=true;
   try{
-    initRenderer();hero.cancel();loaded=false;crowd?.dispose();for(const actor of actors)actor.char.dispose();player?.dispose();player=null;actors=[];items=[];hazards=[];effects=[];
-    level=assets.manifest.levels.find(l=>l.id===id);scene=new THREE.Scene();scene.background=new THREE.Color(id===9?0x6c7d81:0xacc5cc);scene.fog=new THREE.Fog(scene.background,180,650);scene.add(new THREE.HemisphereLight(0xf1f1df,0x626d55,2.1));const sun=new THREE.DirectionalLight(0xfff0cf,1.5);sun.position.set(80,180,50);scene.add(sun);
+    initRenderer();hero.cancel();loaded=false;graphics.releaseScene?.(scene);combatFX?.dispose();crowd?.dispose();for(const actor of actors)actor.char.dispose();player?.dispose();player=null;actors=[];items=[];hazards=[];effects=[];
+    level=assets.manifest.levels.find(l=>l.id===id);scene=new THREE.Scene();scene.add(camera);scene.background=new THREE.Color(id===9?0x6c7d81:0xacc5cc);scene.fog=new THREE.Fog(scene.background,180,650);scene.add(new THREE.HemisphereLight(0xf1f1df,0x626d55,2.1));const sun=new THREE.DirectionalLight(0xfff0cf,1.5);sun.position.set(80,180,50);scene.add(sun);
     const skyPath=assets.manifest.images['textures/!!!!!!sky_jpg__0.jpg'];if(skyPath){const sky=await assets.texture({map:skyPath});sky.mapping=THREE.EquirectangularReflectionMapping;scene.background=sky;}
     worldMesh=await assets.model(level.model);scene.add(worldMesh);worldMesh.updateMatrixWorld(true);$('loading-status').textContent='Столкновения и персонажи…';await new Promise(r=>setTimeout(r,20));world.setWorld(worldMesh);
     mapBounds=new THREE.Box3().setFromObject(worldMesh);
     const start=level.entities.filter(e=>e.command==='GameStart').at(-1);if(!start)throw new Error('Нет точки старта');position.set(start.x/100,start.y/100,start.z/100);const floor=world.ground(position.x,position.y+.2,position.z,50);position.y=(floor??position.y-1)+.03;spawn.copy(position);velocity.set(0,0,0);grounded=false;
     const keyEntity=level.entities.find(e=>e.command==='GameKey');yaw=keyEntity?Math.atan2(keyEntity.x/100-position.x,keyEntity.z/100-position.z):0;pitch=-.07;
-    hp=100;ammo=restore?Math.max(60,saved?.ammo||120):120;money=restore?saved?.money||0:0;weapon=0;collected=0;totalKeys=level.entities.filter(e=>e.command==='GameKey').length;kills=0;comicIndex=0;comicEnding=false;
+    hp=100;ammo=restore?Math.max(60,saved?.ammo||120):120;money=restore?saved?.money||0:0;weapon=0;collected=0;totalKeys=level.entities.filter(e=>e.command==='GameKey').length;kills=0;comicIndex=0;comicEnding=false;combat.reset({ammo,weapon});motion.reset();world.height=1.65;
     toastTimer=0;damageTimer=0;hitTimer=0;shotTimer=0;$('toast').style.opacity=0;$('damage').style.borderColor='transparent';$('hitmarker').style.opacity=0;$('prompt').style.display='none';$('objective-distance').textContent='';$('minimap').hidden=true;
     player=await createCharacter(hero.value,assets.model.bind(assets),assets.json.bind(assets));scene.add(player.group);player.characterName=hero.value;updateHeroName();
     const weaponModel=await assets.model('models/weapons/weaponpistol.3ds',true);if(player.attachWeapon)player.attachWeapon(weaponModel);
@@ -84,22 +119,38 @@ async function loadLevel(id,restore=false){if(busy||!assets.manifest)return;busy
       if(['GameEnd','GameKey','МАГАЗИН'].includes(e.command)){const ring=new THREE.Mesh(new THREE.TorusGeometry(.52,.025,6,32),new THREE.MeshBasicMaterial({color,depthTest:false}));ring.rotation.x=Math.PI/2;ring.position.y=-.2;holder.add(ring);}
       scene.add(holder);items.push({entry:e,pos:p,object:holder,collected:false,baseY:p.y});
     }));
-    graphics.applyScene(scene,player);crowd=new CrowdRenderer(scene,actors);loaded=true;$('hud').hidden=false;$('level-label').textContent=`МИССИЯ ${String(id).padStart(2,'0')} / 09 · ${locations[id-1]}`;updateHUD();updateCamera(true);crowd.update(camera.position);renderer.render(scene,camera);setMusic('music/t3.wav');saveProgress();
+    crowd=new CrowdRenderer(scene,actors);combatFX=new CombatFX(scene);graphics.applyScene(scene,player);loaded=true;syncGraphics();if(isEnhanced())await viewmodel.setWeapon(weapon);$('hud').hidden=false;$('level-label').textContent=`МИССИЯ ${String(id).padStart(2,'0')} / 09 · ${locations[id-1]}`;updateHUD();updateCamera(true);crowd.update(camera.position);graphics.render(renderer,scene,camera,0);setMusic('music/t3.wav');saveProgress();
     briefings();
   }catch(err){console.error(err);loaded=false;$('hud').hidden=true;$('menu').hidden=false;$('status').textContent='Не удалось загрузить уровень: '+err.message;showDialog(`<h2>Уровень не загрузился</h2><p id="load-error"></p><button id="back-to-menu">Вернуться в меню</button>`);$('load-error').textContent=err.message;$('back-to-menu').onclick=mainMenu;
   }finally{busy=false;$('loading').hidden=true;}
 }
 function saveProgress(){if(!level)return;saved={version:1,level:level.id,money,ammo,date:Date.now()};try{localStorage.setItem('gulman-web-save-v1',JSON.stringify(saved));}catch{}}
-function updateHUD(){ $('health-value').textContent=Math.max(0,Math.ceil(hp));$('health-bar').style.width=Math.max(0,hp)+'%';$('ammo-value').textContent=ammo;$('credits').textContent='$ '+money;$('weapon-name').textContent=weapons[weapon].name;$('weapon-icon').src=assets.url(ui.data.hud[['pistol','rifle','grenade','bigGun'][weapon]].image);$('weapon-slots').textContent=[1,2,3,4].map(n=>n===weapon+1?'['+n+']':n).join(' · ');$('objective').textContent=collected>=totalKeys?'Артефакты собраны. Найди выход.':tasks[level.id-1]+(totalKeys>1?` (${collected}/${totalKeys})`:''); }
-async function changeWeapon(index){weapon=index;updateHUD();const currentPlayer=player;const paths=['weaponpistol','weaponrifle','granate','weaponrifle2'];try{const model=await assets.model('models/weapons/'+paths[index]+'.3ds',true);if(player===currentPlayer&&weapon===index)player.attachWeapon(model,{length:index===2?.2:index===0?.42:.7});}catch(error){console.warn('Weapon model:',error);}}
+function updateHUD(){ $('health-value').textContent=Math.max(0,Math.ceil(hp));$('health-bar').style.width=Math.max(0,hp)+'%';$('ammo-value').textContent=ammo;$('credits').textContent='$ '+money;$('weapon-name').textContent=weapons[weapon].name;$('weapon-icon').src=assets.url(ui.data.hud[['pistol','rifle','grenade','bigGun'][weapon]].image);$('weapon-slots').textContent=[1,2,3,4].map(n=>n===weapon+1?'['+n+']':n).join(' · ');$('objective').textContent=collected>=totalKeys?'Артефакты собраны. Найди выход.':tasks[level.id-1]+(totalKeys>1?` (${collected}/${totalKeys})`:'');combat.setAmmo(ammo);updateCombatHUD(); }
+async function changeWeapon(index){weapon=index;combat.setWeapon(index);if(isEnhanced())void viewmodel?.setWeapon(index);updateHUD();const currentPlayer=player;const paths=['weaponpistol','weaponrifle','granate','weaponrifle2'];try{const model=await assets.model('models/weapons/'+paths[index]+'.3ds',true);if(player===currentPlayer&&weapon===index)player.attachWeapon(model,{length:index===2?.2:index===0?.42:.7});}catch(error){console.warn('Weapon model:',error);}}
 function deathMenu(){menuScreen('gameOver',{extras:'<button data-command="MAIN">Главное меню</button>',extrasRect:[380,680,300,45],extrasClass:'original-toolbar'});}
 function damage(amount){if(!running||hp<=0)return;hp=Math.max(0,hp-amount);damageTimer=.3;$('damage').style.borderColor='#ad202080';if(hp<=0){saveProgress();deathMenu();}updateHUD();}
 function tracer(a,b,color=0xffdb8b){const g=new THREE.BufferGeometry().setFromPoints([a,b]);const mat=new THREE.LineBasicMaterial({color,transparent:true,opacity:.8});const line=new THREE.Line(g,mat);scene.add(line);effects.push({mesh:line,ttl:.09});}
-function shoot(){const w=weapons[weapon];if(shotTimer>0)return;if(ammo<w.cost){toast('Нет патронов. Ищи ящики или магазин.');shotTimer=.5;return;}shotTimer=w.rate;ammo-=w.cost;playSound(w.sound,.3);camera.getWorldDirection(tmp);const dir=tmp.clone(),origin=camera.position.clone();const wall=world.ray(origin,dir,180);let distance=wall?.distance??180,target=null;const ray=new THREE.Ray(origin,dir);const point=new THREE.Vector3();for(const actor of actors){if(actor.dead)continue;const center=actor.pos.clone().add(new THREE.Vector3(0,.95,0));if(ray.intersectSphere(new THREE.Sphere(center,.7),point)){const d=point.distanceTo(origin);if(d<distance){distance=d;target=actor;}}}
-  const end=origin.clone().addScaledVector(dir,distance);const muzzle=position.clone().add(new THREE.Vector3(0,1.2,0));const muzzleDirection=end.clone().sub(muzzle);const obstruction=world.ray(muzzle,muzzleDirection,Math.max(0,muzzleDirection.length()-.05));if(obstruction){end.copy(obstruction.position);target=null;}tracer(muzzle,end);
+
+function shoot(){
+  const w=weapons[weapon],modern=isEnhanced();let spread=0;
+  if(modern){const shot=combat.tryFire(ammo);if(!shot.fired){if(shot.reason==='reload')reloadWeapon();else if(shot.reason==='empty'&&toastTimer<=0)toast('Нет патронов. Ищи припасы или магазин.');return;}ammo=shot.ammo;spread=shot.spread||0;viewmodel?.flash();}
+  else{if(shotTimer>0)return;if(ammo<w.cost){toast('Нет патронов. Ищи ящики или магазин.');shotTimer=.5;return;}shotTimer=w.rate;ammo-=w.cost;}
+  playSound(w.sound,.55);camera.getWorldDirection(tmp);const dir=tmp.clone(),origin=camera.position.clone();
+  if(spread){dir.applyAxisAngle(camera.up,(Math.random()-.5)*spread);dir.y+=(Math.random()-.5)*spread;dir.normalize();}
+  const wall=world.ray(origin,dir,180);let distance=wall?.distance??180,target=null;
+  const ray=new THREE.Ray(origin,dir),point=new THREE.Vector3();
+  for(const actor of actors){if(actor.dead)continue;const center=actor.pos.clone().add(new THREE.Vector3(0,.95,0));if(ray.intersectSphere(new THREE.Sphere(center,.7),point)){const d=point.distanceTo(origin);if(d<distance){distance=d;target=actor;}}}
+  const end=origin.clone().addScaledVector(dir,distance),muzzle=position.clone().add(new THREE.Vector3(0,1.2,0));
+  if(modern&&!thirdPerson){viewmodel.muzzleWorldPosition(muzzle);}
+  const muzzleDirection=end.clone().sub(muzzle),obstruction=world.ray(muzzle,muzzleDirection,Math.max(0,muzzleDirection.length()-.05));
+  if(obstruction){end.copy(obstruction.position);target=null;}
+  if(modern)combatFX.shot({origin:muzzle,end,normal:obstruction?.normal??(!target?wall?.normal:null),hit:!!target,explosionRadius:w.splash||0});else tracer(muzzle,end);
   const hurt=(actor,value)=>{actor.hp-=value;if(actor.hp<=0&&!actor.dead){actor.dead=true;kills++;money+=10;void audio.play('sounds/боты/в'+(1+Math.floor(Math.random()*4))+'.wav',.5,{voice:true});}};
   if(target){hurt(target,w.damage);hitTimer=.15;$('hitmarker').style.opacity=1;}
-  if(w.splash){for(const actor of actors){if(actor===target||actor.dead)continue;const d=actor.pos.distanceTo(end);if(d<w.splash){const v=actor.pos.clone().add(new THREE.Vector3(0,1,0)).sub(end);if(!world.ray(end.clone().addScaledVector(dir,-.1),v,v.length()-.2))hurt(actor,w.damage*(1-d/w.splash));}}const ball=new THREE.Mesh(new THREE.SphereGeometry(w.splash*.4,12,8),new THREE.MeshBasicMaterial({color:0xff9a44,transparent:true,opacity:.4}));ball.position.copy(end);scene.add(ball);effects.push({mesh:ball,ttl:.25});}
+  if(w.splash){
+    for(const actor of actors){if(actor===target||actor.dead)continue;const d=actor.pos.distanceTo(end);if(d<w.splash){const v=actor.pos.clone().add(new THREE.Vector3(0,1,0)).sub(end);if(!world.ray(end.clone().addScaledVector(dir,-.1),v,v.length()-.2))hurt(actor,w.damage*(1-d/w.splash));}}
+    if(!modern){const ball=new THREE.Mesh(new THREE.SphereGeometry(w.splash*.4,12,8),new THREE.MeshBasicMaterial({color:0xff9a44,transparent:true,opacity:.4}));ball.position.copy(end);scene.add(ball);effects.push({mesh:ball,ttl:.25});}
+  }
   updateHUD();
 }
 function interact(item){const e=item.entry,n=Number(e.args[0])||0;
@@ -121,33 +172,74 @@ function updateEnemies(dt){const playerEye=position.clone().add(new THREE.Vector
     actor.char.group.position.copy(actor.pos);actor.char.update(dt,{moving,running:false});
   }
 }
-function updateCamera(instant=false){const head=position.clone().add(new THREE.Vector3(0,1.4,0));const direction=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));let desired;
-  if(thirdPerson){desired=head.clone().addScaledVector(direction,-4).add(new THREE.Vector3(Math.cos(yaw)*.55,.5,-Math.sin(yaw)*.55));const v=desired.clone().sub(head);const hit=world.ray(head,v,v.length());if(hit)desired.copy(head).addScaledVector(v.normalize(),Math.max(.2,hit.distance-.2));}else desired=head;
-  camera.position.copy(desired);camera.lookAt(head.clone().addScaledVector(direction,40));player.group.position.copy(position);player.group.rotation.y=yaw;player.group.visible=thirdPerson&&camera.position.distanceTo(head)>.8;
+
+function updateCamera(instant=false,dt=.016){
+  const modern=isEnhanced(),ads=modern?combat.ads:0;
+  const head=position.clone().add(new THREE.Vector3(0,modern&&motion.crouched?1.02:1.4,0));
+  if(modern)head.y+=motion.landing+(!thirdPerson?motion.bob:0);
+  const viewYaw=yaw+(modern?combat.recoil.yaw:0),viewPitch=pitch+(modern?combat.recoil.pitch:0);
+  const direction=new THREE.Vector3(Math.sin(viewYaw)*Math.cos(viewPitch),Math.sin(viewPitch),Math.cos(viewYaw)*Math.cos(viewPitch));let desired;
+  if(thirdPerson){desired=head.clone().addScaledVector(direction,-(4-ads*1.9)).add(new THREE.Vector3(Math.cos(yaw)*.55,.5,-Math.sin(yaw)*.55));const v=desired.clone().sub(head),hit=world.ray(head,v,v.length());if(hit)desired.copy(head).addScaledVector(v.normalize(),Math.max(.2,hit.distance-.2));}else desired=head;
+  camera.position.copy(desired);camera.lookAt(head.clone().addScaledVector(direction,40));
+  if(modern)camera.rotateZ(motion.roll);
+  const fov=modern?(75-ads*25+(motion.sprinting?7:motion.sliding?5:0)):67;
+  camera.fov=instant?fov:THREE.MathUtils.lerp(camera.fov,fov,1-Math.exp(-dt*12));camera.updateProjectionMatrix();
+  player.group.position.copy(position);player.group.rotation.y=yaw;player.group.visible=thirdPerson&&camera.position.distanceTo(head)>.8;
+  viewmodel?.setVisible(modern&&!thirdPerson);$('camera-switch').textContent=thirdPerson?'Вид: 3':'Вид: 1';
 }
 function updateMap(){if($('minimap').hidden)return;const ctx=$('minimap').getContext('2d'),w=220;ctx.clearRect(0,0,w,w);ctx.fillStyle='#101a13e0';ctx.fillRect(0,0,w,w);const sx=mapBounds.max.x-mapBounds.min.x,sz=mapBounds.max.z-mapBounds.min.z,scale=190/Math.max(sx,sz);const map=p=>[110+(p.x-(mapBounds.min.x+mapBounds.max.x)/2)*scale,110+(p.z-(mapBounds.min.z+mapBounds.max.z)/2)*scale];ctx.strokeStyle='#75865e60';ctx.strokeRect(110-sx*scale/2,110-sz*scale/2,sx*scale,sz*scale);const dot=(p,c,r)=>{const [x,z]=map(p);ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,z,r,0,Math.PI*2);ctx.fill();};for(const a of actors)if(!a.dead)dot(a.pos,'#d47560',2);for(const i of items)if(!i.collected&&['GameKey','GameEnd'].includes(i.entry.command))dot(i.pos,i.entry.command==='GameKey'?'#f6cf71':'#a2e47e',4);dot(position,'white',4);const [x,z]=map(position);ctx.strokeStyle='white';ctx.beginPath();ctx.moveTo(x,z);ctx.lineTo(x+Math.sin(yaw)*10,z+Math.cos(yaw)*10);ctx.stroke();ctx.fillStyle='#c6d2b0';ctx.font='10px Arial';ctx.fillText('N',105,12);}
-function frame(now){requestAnimationFrame(frame);const elapsed=Math.min(.25,(now-lastFrame)/1000),dt=Math.min(.04,elapsed);lastFrame=now;if(!loaded||!scene||(!running&&ui.visible))return;
-  if(running){voiceTimer-=dt;if(voiceTimer<=0)heroVoice();shotTimer-=dt;saveTimer+=dt;if(saveTimer>10){saveTimer=0;saveProgress();}if(keys.has('ArrowLeft'))yaw+=dt*1.8;if(keys.has('ArrowRight'))yaw-=dt*1.8;if(keys.has('ArrowUp'))pitch=Math.min(.9,pitch+dt);if(keys.has('ArrowDown'))pitch=Math.max(-1.1,pitch-dt);
-    const f=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),s=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0);forward.set(Math.sin(yaw),0,Math.cos(yaw));right.set(-Math.cos(yaw),0,Math.sin(yaw));tmp.copy(forward).multiplyScalar(f).addScaledVector(right,s);if(tmp.lengthSq())tmp.normalize();const sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');tmp.multiplyScalar(sprint?8:4.3);velocity.x=tmp.x;velocity.z=tmp.z;
-    if(keys.has('Space')&&grounded){velocity.y=8;grounded=false;keys.delete('Space');}const result=world.move(position,velocity,dt,grounded);grounded=result.onGround;if(position.y<mapBounds.min.y-20){position.copy(spawn);velocity.set(0,0,0);damage(15);toast('Возвращение на безопасную точку.');}
-    player.update(dt,{moving:!!(f||s),running:sprint,airborne:!grounded,direction:f<0?'back':s<0?'left':s>0?'right':'forward'});updateCamera();if(shooting)shoot();updateEnemies(dt);if(running)updateItems(dt,now/1000);for(const h of hazards)if(position.distanceTo(h.pos)<h.radius)damage(dt*10);updateMap();
+
+function frame(now){
+  requestAnimationFrame(frame);const elapsed=Math.min(.25,(now-lastFrame)/1000),dt=Math.min(.04,elapsed);lastFrame=now;
+  if(!loaded||!scene||(!running&&ui.visible))return;
+  if(running){
+    const modern=isEnhanced();voiceTimer-=dt;if(voiceTimer<=0)heroVoice();shotTimer-=dt;saveTimer+=dt;
+    if(saveTimer>10){saveTimer=0;saveProgress();}if(keys.has('ArrowLeft'))yaw+=dt*1.8;if(keys.has('ArrowRight'))yaw-=dt*1.8;if(keys.has('ArrowUp'))pitch=Math.min(.9,pitch+dt);if(keys.has('ArrowDown'))pitch=Math.max(-1.1,pitch-dt);
+    const f=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),s=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0),moving=!!(f||s),sprint=(keys.has('ShiftLeft')||keys.has('ShiftRight'))&&moving&&!aimHeld&&!shooting;
+    const crouchHeld=keys.has('ControlLeft')||keys.has('ControlRight');
+    if(modern){motion.update(dt,{moving,sprinting:sprint,aiming:combat.ads,crouchPressed,crouchHeld,grounded,verticalSpeed:velocity.y,strafe:s});combat.setAmmo(ammo);combat.update(dt,{aiming:aimHeld,sprinting:motion.sprinting,moving,grounded});}
+    crouchPressed=false;
+    forward.set(Math.sin(yaw),0,Math.cos(yaw));right.set(-Math.cos(yaw),0,Math.sin(yaw));tmp.copy(forward).multiplyScalar(f).addScaledVector(right,s);if(tmp.lengthSq())tmp.normalize();
+    if(modern&&motion.sliding)tmp.copy(forward);tmp.multiplyScalar(modern?motion.speed:sprint?8:4.3);velocity.x=tmp.x;velocity.z=tmp.z;
+    if(modern){if(motion.crouched)world.height=1.12;else if(world.height<1.65){const ceiling=world.ray(position.clone().add(new THREE.Vector3(0,.4,0)),new THREE.Vector3(0,1,0),1.25);if(!ceiling)world.height=1.65;else motion.crouched=true;}}else world.height=1.65;
+    if(keys.has('Space')&&grounded&&world.height>1.5){velocity.y=8;grounded=false;keys.delete('Space');}
+    const fallSpeed=velocity.y,result=world.move(position,velocity,dt,grounded);if(result.onGround&&!grounded&&modern){motion.landingVelocity=-Math.min(.85,Math.abs(fallSpeed)*.055);}grounded=result.onGround;
+    if(position.y<mapBounds.min.y-20){position.copy(spawn);velocity.set(0,0,0);damage(15);toast('Возвращение на безопасную точку.');}
+    motion.prepare(player);player.update(dt,{moving,running:sprint,airborne:!grounded,crouching:modern&&motion.crouched,direction:f<0?'back':s<0?'left':s>0?'right':'forward'});
+    if(modern)motion.apply(player,{moving,aiming:combat.ads,reloading:combat.reloading,reloadProgress:combat.reloadProgress,recoil:combat.recoil.pitch});
+    updateCamera(false,dt);
+    if(modern){viewmodel.update(dt,{speed:motion.speed,sprinting:motion.sprinting,aiming:combat.ads,reloading:combat.reloading,reloadProgress:combat.reloadProgress,recoil:combat.recoil,movementX:lookX,movementY:lookY,grounded,landing:motion.landing});updateCombatHUD();}
+    lookX=lookY=0;if(shooting)shoot();updateEnemies(dt);if(running)updateItems(dt,now/1000);for(const h of hazards)if(position.distanceTo(h.pos)<h.radius)damage(dt*10);updateMap();combatFX?.update(dt);
   }
   for(let i=effects.length-1;i>=0;i--){const e=effects[i];e.ttl-=dt;if(e.ttl<=0){e.mesh.removeFromParent();e.mesh.geometry.dispose();e.mesh.material.dispose();effects.splice(i,1);}}
   if(toastTimer>0&&(toastTimer-=dt)<=0)$('toast').style.opacity=0;if(damageTimer>0&&(damageTimer-=dt)<=0)$('damage').style.borderColor='transparent';if(hitTimer>0&&(hitTimer-=dt)<=0)$('hitmarker').style.opacity=0;
-  graphics.update(position,{grounded});crowd?.update(camera.position);renderer.render(scene,camera);frameCount++;fpsTime+=elapsed;if(fpsTime>1){$('game').dataset.fps=String(Math.round(frameCount/fpsTime));$('game').dataset.drawCalls=String(renderer.info.render.calls);$('game').dataset.level=String(level.id);$('game').dataset.position=position.toArray().map(n=>n.toFixed(2)).join(',');frameCount=0;fpsTime=0;}
+  graphics.update(position,{grounded,dt,time:now/1000,camera});crowd?.update(camera.position);graphics.render(renderer,scene,camera,elapsed);
+  frameCount++;fpsTime+=elapsed;
+  if(fpsTime>1){Object.assign($('game').dataset,{fps:String(Math.round(frameCount/fpsTime)),drawCalls:String(renderer.info.render.calls),level:String(level.id),position:position.toArray().map(n=>n.toFixed(2)).join(','),renderMode:graphics.mode,quality:graphics.quality,effectiveQuality:graphics.diagnostics.effectiveQuality,renderScale:String(graphics.diagnostics.renderScale),renderPasses:String(graphics.diagnostics.postprocessing?.passes||1)});frameCount=0;fpsTime=0;}
 }
 
-
 document.addEventListener('pointerdown',()=>{if(!audio.unlocked)audio.unlock();},true);
-document.addEventListener('keydown',e=>{if(!audio.unlocked)audio.unlock();if(['F1','F2'].includes(e.code)){e.preventDefault();if(e.repeat)return;if(!busy)hero.select(e.code==='F1'?'Gulman':'Dama');return;}if(e.target.matches('input,select,textarea'))return;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.code==='Escape'){if(running)pause();return;}if(!running)return;keys.add(e.code);if(e.repeat)return;if(e.code==='KeyC')thirdPerson=!thirdPerson;if(e.code==='KeyM')$('minimap').hidden=!$('minimap').hidden;if(/^Digit[1-4]$/.test(e.code))changeWeapon(+e.code.at(-1)-1);});
+document.addEventListener('keydown',e=>{
+  if(!audio.unlocked)audio.unlock();
+  if(['F1','F2'].includes(e.code)){e.preventDefault();if(e.repeat)return;if(!busy)hero.select(e.code==='F1'?'Gulman':'Dama');return;}
+  if(e.target.matches('input,select,textarea'))return;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)||(running&&e.ctrlKey))e.preventDefault();
+  if(e.code==='Escape'){if(running)pause();return;}if(!running)return;keys.add(e.code);if(e.repeat)return;
+  if(e.code==='KeyC')setCamera(!thirdPerson);if(e.code==='KeyM')$('minimap').hidden=!$('minimap').hidden;if(e.code==='KeyR')reloadWeapon();
+  if(e.code==='ControlLeft'||e.code==='ControlRight')crouchPressed=true;
+  if(/^Digit[1-4]$/.test(e.code))changeWeapon(+e.code.at(-1)-1);
+});
 document.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();if(running)pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden){if(running)pause();audio.pauseMusic();}else audio.resumeMusic();});document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement&&running)pause();});
-$('game').addEventListener('pointerdown',e=>{if(!running)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};if(e.pointerType==='mouse'){shooting=true;firePointer=e.pointerId;}$('game').setPointerCapture?.(e.pointerId);});
-function releasePointer(e){if(e.pointerId===firePointer){shooting=false;firePointer=null;}if(e.pointerId===drag?.id)drag=null;}
+$('game').addEventListener('pointerdown',e=>{if(!running)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};$('game').setPointerCapture?.(e.pointerId);});
+$('game').addEventListener('mousedown',e=>{if(!running)return;if(e.button===0){shooting=true;shoot();}if(e.button===2)aimHeld=true;});
+document.addEventListener('mouseup',e=>{if(e.button===0){shooting=false;firePointer=null;}if(e.button===2)aimHeld=false;});
+function releasePointer(e){if(e.button===2)aimHeld=false;if(e.pointerId===firePointer&&e.button!==2){shooting=false;firePointer=null;}if(e.pointerId===drag?.id&&!e.buttons)drag=null;}
 document.addEventListener('pointerup',releasePointer);document.addEventListener('pointercancel',releasePointer);
-document.addEventListener('pointermove',e=>{if(!running)return;if(document.pointerLockElement){yaw-=e.movementX*.0025*sensitivity;pitch=Math.max(-1.1,Math.min(.9,pitch-e.movementY*.0025*sensitivity*(invertMouse?-1:1)));}else if(drag?.id===e.pointerId){yaw-=(e.clientX-drag.x)*.004*sensitivity;pitch=Math.max(-1.1,Math.min(.9,pitch-(e.clientY-drag.y)*.004*sensitivity*(invertMouse?-1:1)));drag.x=e.clientX;drag.y=e.clientY;}});
-document.querySelectorAll('[data-key]').forEach(button=>{button.onpointerdown=e=>{e.preventDefault();keys.add(button.dataset.key);button.setPointerCapture(e.pointerId);};button.onpointerup=button.onpointercancel=()=>keys.delete(button.dataset.key);});$('touch-fire').onpointerdown=e=>{e.preventDefault();shooting=true;firePointer=e.pointerId;e.target.setPointerCapture(e.pointerId);};$('touch-fire').onpointerup=$('touch-fire').onpointercancel=releasePointer;
+$('game').addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('pointermove',e=>{if(!running)return;lookX=e.movementX||0;lookY=e.movementY||0;if(document.pointerLockElement){yaw-=e.movementX*.0025*sensitivity;pitch=Math.max(-1.1,Math.min(.9,pitch-e.movementY*.0025*sensitivity*(invertMouse?-1:1)));}else if(drag?.id===e.pointerId){yaw-=(e.clientX-drag.x)*.004*sensitivity;pitch=Math.max(-1.1,Math.min(.9,pitch-(e.clientY-drag.y)*.004*sensitivity*(invertMouse?-1:1)));drag.x=e.clientX;drag.y=e.clientY;}});
+document.querySelectorAll('[data-key]').forEach(button=>{button.onpointerdown=e=>{e.preventDefault();keys.add(button.dataset.key);button.setPointerCapture(e.pointerId);};button.onpointerup=button.onpointercancel=()=>keys.delete(button.dataset.key);});$('touch-fire').onpointerdown=e=>{e.preventDefault();shooting=true;firePointer=e.pointerId;e.target.setPointerCapture(e.pointerId);shoot();};$('touch-fire').onpointerup=$('touch-fire').onpointercancel=releasePointer;
 
-$('pause-button').onclick=()=>pause();$('briefing-open').onclick=()=>{comicEnding=false;comicIndex=0;briefings();};$('hero-switch').onclick=()=>hero.select(hero.value==='Dama'?'Gulman':'Dama');$('sound-unlock').onclick=()=>{audio.muted=false;audio.unlock();};
+$('camera-switch').onclick=()=>setCamera(!thirdPerson);$('touch-reload').onclick=reloadWeapon;$('touch-aim').onclick=()=>{aimHeld=!aimHeld;$('touch-aim').setAttribute('aria-pressed',String(aimHeld));};$('pause-button').onclick=()=>pause();$('briefing-open').onclick=()=>{comicEnding=false;comicIndex=0;briefings();};$('hero-switch').onclick=()=>hero.select(hero.value==='Dama'?'Gulman':'Dama');$('sound-unlock').onclick=()=>{audio.muted=false;audio.unlock();};
 async function ready(){await ui.init();$('resource-error').hidden=true;for(const name of ['health','ammo','money'])$(name+'-icon').src=assets.url(ui.data.hud[name].image);$('crosshair').src=assets.url(ui.data.hud.crosshair.image);$('loading').style.setProperty('--loading-frame',`url("${assets.url(ui.data.frames.default)}")`);updateHeroName();mainMenu();updateSoundStatus();}
 $('asset-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;$('status').textContent='Распаковка ресурсов…';try{await assets.importZip(file);await ready();}catch(error){$('status').textContent='Ошибка импорта: '+error.message;}};
 try{await assets.init();await ready();}catch(error){$('resource-error').hidden=false;$('status').textContent='Ресурсы не загрузились: '+error.message;$('import-panel').hidden=false;console.warn(error);}

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EnhancedPostprocessing } from './postprocessing.js?v=20261108-4';
 
 const STORAGE_KEY = 'gulman-web-graphics-v1';
 const SHARPEN_ID = 'gulman-art-sharpen';
@@ -10,11 +11,116 @@ export const GRAPHICS_MODES = Object.freeze({
   potato: Object.freeze({ label: 'Экономный', pixelRatioCap: 0.75, anisotropy: 1, artEnhancement: false }),
 });
 
-/** One bounded render resolution, with no post-processing render targets. */
+export const ENHANCED_QUALITY = Object.freeze({
+  high: Object.freeze({ shadowSize: 1024, shadowRadius: 30, shadowFPS: 24, detailMaps: true, bloom: true, pixelRatioCap: 1.5, maxPixels: 3000000 }),
+  low: Object.freeze({ shadowSize: 512, shadowRadius: 22, shadowFPS: 12, detailMaps: false, bloom: false, pixelRatioCap: 1, maxPixels: 1000000 }),
+});
+
+/** Original/economy stay single-pass; enhanced quality is bounded separately. */
 export function getGraphicsProfile(mode = 'original', deviceRatio = globalThis.devicePixelRatio ?? 1) {
   const resolved = Object.hasOwn(GRAPHICS_MODES, mode) ? mode : 'original';
   const ratio = Number.isFinite(deviceRatio) && deviceRatio > 0 ? deviceRatio : 1;
-  return { mode: resolved, ...GRAPHICS_MODES[resolved], pixelRatio: Math.min(ratio, GRAPHICS_MODES[resolved].pixelRatioCap), postPasses: 0 };
+  return { mode: resolved, ...GRAPHICS_MODES[resolved], pixelRatio: Math.min(ratio, GRAPHICS_MODES[resolved].pixelRatioCap), postPasses: resolved === 'enhanced' ? 4 : 0 };
+}
+
+function surfaceKind(label) {
+  const value = String(label).toLowerCase();
+  if (/water|ocean|pool|вода|море/.test(value)) return { roughness: 0.22, metalness: 0.06, normal: 0.8, water: true };
+  if (/metal|steel|chrome|bronze|gold|желез|сталь|металл|weapon|rifle|pistol/.test(value)) return { roughness: 0.38, metalness: 0.65, normal: 0.18 };
+  if (/marble|tile|мрамор|плитк/.test(value)) return { roughness: 0.48, metalness: 0, normal: 0.2 };
+  if (/face|skin|body|голов|лицо|тело|players/.test(value)) return { roughness: 0.8, metalness: 0, normal: 0.1 };
+  return { roughness: 0.88, metalness: 0, normal: 0.4 };
+}
+
+/** Conservative image-derived relief: luminance edges plus fine surface grain.
+ * Colour images do not encode true geometry; amplitude deliberately stays low.
+ */
+export function deriveSurfacePixels(pixels, width, height) {
+  const luma = new Float32Array(width * height);
+  const normal = new Uint8Array(width * height * 4);
+  const roughness = new Uint8Array(width * height * 4);
+  for (let i = 0; i < luma.length; i++) luma[i] = (pixels[i * 4] * 0.2126 + pixels[i * 4 + 1] * 0.7152 + pixels[i * 4 + 2] * 0.0722) / 255;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const i = y * width + x, offset = i * 4;
+    const grain = ((((x * 73856093) ^ (y * 19349663)) >>> 0) % 997) / 997 - 0.5;
+    const dx = (luma[y * width + (x + 1) % width] - luma[y * width + (x + width - 1) % width]) * 1.8 + grain * 0.05;
+    const dy = (luma[((y + 1) % height) * width + x] - luma[((y + height - 1) % height) * width + x]) * 1.8 - grain * 0.05;
+    const inverse = 1 / Math.hypot(dx, dy, 1);
+    normal[offset] = Math.round((-dx * inverse * 0.5 + 0.5) * 255);
+    normal[offset + 1] = Math.round((dy * inverse * 0.5 + 0.5) * 255);
+    normal[offset + 2] = Math.round((inverse * 0.5 + 0.5) * 255);
+    normal[offset + 3] = 255;
+    const r = Math.round(THREE.MathUtils.clamp(0.91 - luma[i] * 0.12 + grain * 0.05, 0.65, 1) * 255);
+    roughness[offset] = roughness[offset + 1] = roughness[offset + 2] = r;
+    roughness[offset + 3] = 255;
+  }
+  return { normal, roughness, width, height };
+}
+
+function copyTextureTransform(texture, source) {
+  texture.wrapS = source.wrapS; texture.wrapT = source.wrapT;
+  texture.repeat.copy(source.repeat); texture.offset.copy(source.offset);
+  texture.center.copy(source.center); texture.rotation = source.rotation;
+  texture.channel = source.channel; texture.flipY = source.flipY;
+}
+
+function shadowState(light) {
+  const shadow = light.shadow;
+  if (!shadow) return null;
+  const camera = shadow.camera;
+  return {
+    map: shadow.map, mapPass: shadow.mapPass, mapSize: shadow.mapSize.clone(),
+    bias: shadow.bias, normalBias: shadow.normalBias, radius: shadow.radius,
+    autoUpdate: shadow.autoUpdate, needsUpdate: shadow.needsUpdate,
+    camera: { left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom, near: camera.near, far: camera.far },
+  };
+}
+
+// Fine world-space grain avoids stretching a 96px relief map over a 200m beach.
+// Derivative fading removes frequencies smaller than a screen pixel. This is
+// deliberately limited to opaque static architecture/terrain at High quality.
+function installMicroDetail(material) {
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = `#ifdef GULMAN_MICRODETAIL\nvarying vec3 vGulmanWorldPosition;\n#endif\n${shader.vertexShader}`;
+    shader.vertexShader = shader.vertexShader.replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+      #ifdef GULMAN_MICRODETAIL
+        vec4 gulmanWorld = vec4( transformed, 1.0 );
+        #ifdef USE_BATCHING
+          gulmanWorld = batchingMatrix * gulmanWorld;
+        #endif
+        #ifdef USE_INSTANCING
+          gulmanWorld = instanceMatrix * gulmanWorld;
+        #endif
+        vGulmanWorldPosition = ( modelMatrix * gulmanWorld ).xyz;
+      #endif
+    `);
+    shader.fragmentShader = `#ifdef GULMAN_MICRODETAIL\nvarying vec3 vGulmanWorldPosition;\n#endif\n${shader.fragmentShader}`;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      #ifdef GULMAN_MICRODETAIL
+        vec3 gulmanP = vGulmanWorldPosition * 75.3982;
+        float gulmanFootprint = max( length( dFdx( gulmanP ) ), length( dFdy( gulmanP ) ) );
+        float gulmanFade = 1.0 - smoothstep( 0.7, 3.5, gulmanFootprint );
+        if ( gulmanFade > 0.001 ) {
+          vec3 gulmanA = vec3( 0.80, 0.17, 0.56 );
+          vec3 gulmanB = vec3( -0.32, 0.93, 0.25 );
+          vec3 gulmanC = vec3( 0.13, 0.31, 0.94 );
+          float gulmanX = dot( gulmanP, gulmanA );
+          float gulmanY = dot( gulmanP, gulmanB );
+          float gulmanZ = dot( gulmanP, gulmanC );
+          float gulmanGrain = sin( gulmanX ) * sin( gulmanY ) * 0.65 + sin( gulmanZ * 1.73 ) * 0.35;
+          vec3 gulmanGradient = gulmanA * cos( gulmanX ) * sin( gulmanY ) * 0.65
+            + gulmanB * sin( gulmanX ) * cos( gulmanY ) * 0.65
+            + gulmanC * cos( gulmanZ * 1.73 ) * 0.6;
+          vec3 gulmanViewGradient = mat3( viewMatrix ) * gulmanGradient;
+          gulmanViewGradient -= normal * dot( normal, gulmanViewGradient );
+          normal = normalize( normal - gulmanViewGradient * ( 0.075 * gulmanFade ) );
+          roughnessFactor = clamp( roughnessFactor + gulmanGrain * ( 0.05 * gulmanFade ), 0.08, 1.0 );
+          diffuseColor.rgb *= 1.0 + gulmanGrain * ( 0.018 * gulmanFade );
+        }
+      #endif
+    `);
+  };
+  material.customProgramCacheKey = () => 'gulman-world-microdetail-v1';
 }
 
 function browserStorage() {
@@ -22,12 +128,13 @@ function browserStorage() {
 }
 
 /**
- * Optional, reversible improvements to the original assets. No AI upscaling,
- * ray tracing, screen-space effects or extra scene render are performed.
+ * Reversible PBR, image-derived detail, environment lighting, local sun shadows
+ * and a bounded HDR pipeline. Original/economy do not allocate that pipeline.
  *
  * Call applyAssets once before loading models; it also handles cached promises.
  * After loading: applyRenderer(renderer); applyScene(scene, player).
- * On resize: applyRenderer(renderer). Each frame: update(feet, {grounded}).
+ * On resize: resize(width,height). Each frame: update(feet,{grounded,dt,camera})
+ * then render(renderer,scene,camera,elapsed). elapsed is real frame duration.
  * groundY can instead provide the measured floor under an airborne player.
  */
 export class GraphicsManager {
@@ -37,10 +144,12 @@ export class GraphicsManager {
     this.document = ownerDocument;
     this.mode = 'original';
     this.lighting = true;
+    this.quality = 'auto';
     try {
       const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? 'null');
       if (Object.hasOwn(GRAPHICS_MODES, saved?.mode)) this.mode = saved.mode;
       if (typeof saved?.lighting === 'boolean') this.lighting = saved.lighting;
+      if (['auto', 'high', 'low'].includes(saved?.quality)) this.quality = saved.quality;
     } catch { /* Storage is optional, including private browsing. */ }
     this._renderer = null;
     this._scene = null;
@@ -48,19 +157,59 @@ export class GraphicsManager {
     this._rendererStates = new WeakMap();
     this._sceneStates = new WeakMap();
     this._textureStates = new WeakMap();
+    this._objectStates = new WeakMap();
+    this._pbrMaterials = new Map();
+    this._pbrSources = new WeakMap();
+    this._detailMaps = new Map();
+    this._waterMaps = new Set();
+    this._textureLabels = new WeakMap();
+    this._assetImageNames = new WeakMap();
     this._textures = new Set();
     this._assetBindings = new Map();
     this._maxAnisotropy = 1;
     this._shadow = null;
+    this._sun = null;
+    this._environment = null;
+    this._skyTexture = null;
+    this._post = null;
+    this._postFailed = false;
+    this._fallbackReason = null;
+    this._environmentFailed = false;
+    this._effectiveQuality = this.quality === 'low' ? 'low' : 'high';
+    this._renderScale = 1;
+    this._averageFrame = 1 / 60;
+    this._adaptiveElapsed = 0;
+    this._warmup = 2;
+    this._shadowElapsed = 1;
+    this._time = 0;
+    this._width = 1;
+    this._height = 1;
+    this._pixelRatio = 1;
+    this._lastPosition = new THREE.Vector3();
+    this._sunDirection = new THREE.Vector3(0.55, 0.72, 0.34).normalize();
+    this._rendererSize = new THREE.Vector2();
     this._disposed = false;
     this._applyDocument();
   }
 
   get profile() { return getGraphicsProfile(this.mode); }
   get enhancedLighting() { return this.mode === 'enhanced' && this.lighting; }
+  get diagnostics() {
+    return {
+      mode: this.mode, quality: this.quality, effectiveQuality: this._effectiveQuality,
+      pixelRatio: this._pixelRatio, renderScale: this._renderScale,
+      estimatedFPS: Math.round(1 / this._averageFrame),
+      shadowSize: this.enhancedLighting ? ENHANCED_QUALITY[this._effectiveQuality].shadowSize : 0,
+      pbrMaterials: this._pbrMaterials.size, detailTextures: this._detailMaps.size * 2,
+      environment: Boolean(this._environment), postprocessing: this._post?.diagnostics ?? null,
+      fallback: this._postFailed,
+      fallbackReason: this._fallbackReason,
+      environmentFallback: this._environmentFailed,
+    };
+  }
 
   _persist() {
-    try { this.storage?.setItem(STORAGE_KEY, JSON.stringify({ mode: this.mode, lighting: this.lighting })); } catch { /* Keep working without persistent storage. */ }
+    try { this.storage?.setItem(STORAGE_KEY, JSON.stringify({ mode: this.mode, lighting: this.lighting, quality: this.quality })); } catch { /* Keep working without persistent storage. */ }
   }
 
   _applyDocument() {
@@ -105,11 +254,28 @@ export class GraphicsManager {
       const manager = this;
       const wrapped = async function (...args) {
         const texture = await original.apply(this, args);
-        if (!manager._disposed) manager._configureTexture(texture);
+        if (!manager._disposed) {
+          let names = manager._assetImageNames.get(assets);
+          if (!names || names.manifest !== assets.manifest) {
+            names = { manifest: assets.manifest, paths: new Map(Object.entries(assets.manifest?.images ?? {}).map(([name, path]) => [path, name])) };
+            manager._assetImageNames.set(assets, names);
+          }
+          manager._textureLabels.set(texture, names.paths.get(args[0]?.map) ?? args[0]?.map ?? '');
+          manager._configureTexture(texture);
+        }
         return texture;
       };
-      this._assetBindings.set(assets, { original, wrapped });
+      const originalModel = assets.model;
+      const wrappedModel = typeof originalModel === 'function' ? async function (...args) {
+        const object = await originalModel.apply(this, args);
+        if (!manager._disposed && manager.mode === 'enhanced') {
+          object.traverse(child => manager._configureObject(child, String(args[0] ?? '')));
+        }
+        return object;
+      } : null;
+      this._assetBindings.set(assets, { original, wrapped, originalModel, wrappedModel });
       assets.texture = wrapped;
+      if (wrappedModel) assets.model = wrappedModel;
     }
     // Do not replace cache entries or create duplicate textures/materials.
     return Promise.all([...assets.textures?.values() ?? []].map(value => Promise.resolve(value)
@@ -143,6 +309,160 @@ export class GraphicsManager {
     if (changed) texture.needsUpdate = true;
   }
 
+  _surfaceMaps(texture, water = false) {
+    if (!texture?.image || texture.isVideoTexture || texture.isRenderTargetTexture) return null;
+    if (this._detailMaps.has(texture)) return this._detailMaps.get(texture);
+    let pixels, width, height;
+    const source = texture.image;
+    if (source.data instanceof Uint8Array && source.width && source.height && source.data.length === source.width * source.height * 4) {
+      // Small test/procedural textures can be sampled without a DOM.
+      width = source.width; height = source.height; pixels = source.data;
+    } else {
+      if (!this.document?.createElement) return null;
+      const imageWidth = source.naturalWidth ?? source.width;
+      const imageHeight = source.naturalHeight ?? source.height;
+      if (!imageWidth || !imageHeight) return null;
+      const ratio = Math.min(1, 96 / Math.max(imageWidth, imageHeight));
+      width = Math.max(4, Math.round(imageWidth * ratio));
+      height = Math.max(4, Math.round(imageHeight * ratio));
+      try {
+        const canvas = this.document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        context.drawImage(source, 0, 0, width, height);
+        pixels = context.getImageData(0, 0, width, height).data;
+      } catch { this._detailMaps.set(texture, null); return null; }
+    }
+    const data = deriveSurfacePixels(pixels, width, height);
+    if (water) {
+      // Seamless overlapping wave trains, independent of the low-res water
+      // photograph. Only their normals move; level geometry/collision is intact.
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const u = x / width * Math.PI * 2, v = y / height * Math.PI * 2;
+        const dx = Math.cos(u * 3 + Math.sin(v) * 0.8) * 0.32 + Math.cos((u + v) * 5) * 0.16 + Math.cos((u - v) * 9) * 0.08;
+        const dy = Math.cos(u * 3 + Math.sin(v) * 0.8) * Math.cos(v) * 0.09 + Math.cos((u + v) * 5) * 0.16 - Math.cos((u - v) * 9) * 0.08;
+        const inverse = 1 / Math.hypot(dx, dy, 1), i = (y * width + x) * 4;
+        data.normal[i] = Math.round((dx * inverse * 0.5 + 0.5) * 255);
+        data.normal[i + 1] = Math.round((dy * inverse * 0.5 + 0.5) * 255);
+        data.normal[i + 2] = Math.round((inverse * 0.5 + 0.5) * 255);
+      }
+    }
+    const maps = {};
+    for (const key of ['normal', 'roughness']) {
+      const map = new THREE.DataTexture(data[key], width, height);
+      map.name = `enhanced-${key}`;
+      map.userData.graphicsOwned = true;
+      map.colorSpace = THREE.NoColorSpace;
+      map.minFilter = THREE.LinearMipmapLinearFilter;
+      map.magFilter = THREE.LinearFilter;
+      map.generateMipmaps = true;
+      map.anisotropy = Math.min(4, this._maxAnisotropy);
+      copyTextureTransform(map, texture);
+      if (water && key === 'normal') {
+        map.repeat.multiplyScalar(3);
+        map.wrapS = map.wrapT = THREE.RepeatWrapping;
+        map.userData.baseOffset = map.offset.clone();
+        this._waterMaps.add(map);
+      }
+      map.needsUpdate = true;
+      maps[key] = map;
+    }
+    this._detailMaps.set(texture, maps);
+    return maps;
+  }
+
+  _pbrMaterial(source, label, object) {
+    source = this._pbrSources.get(source) ?? source;
+    if (!source?.isMeshLambertMaterial && !source?.isMeshPhongMaterial) return source;
+    if (this._pbrMaterials.has(source)) return this._pbrMaterials.get(source);
+    // Some original material names are misleading: beach sand is "waterf1".
+    // Prefer the actual archived image path (beach.jpg versus water.jpg).
+    let kind = surfaceKind(this._textureLabels.get(source.map) || `${label} ${source.name}`);
+    if (kind.water && object?.geometry) {
+      object.geometry.computeBoundingBox();
+      const box = object.geometry.boundingBox;
+      const horizontal = box && (box.max.y - box.min.y) < Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 0.035 + 0.001;
+      if (!horizontal) kind = { roughness: 0.86, metalness: 0, normal: 0.25 };
+    }
+    const material = new THREE.MeshStandardMaterial({
+      color: source.color, map: source.map, alphaMap: source.alphaMap,
+      side: source.side, opacity: source.opacity, transparent: source.transparent,
+      alphaTest: source.alphaTest, depthTest: source.depthTest, depthWrite: source.depthWrite,
+      vertexColors: source.vertexColors, flatShading: source.flatShading,
+      emissive: source.emissive ?? 0, emissiveMap: source.emissiveMap ?? null,
+      emissiveIntensity: source.emissiveIntensity ?? 1,
+      roughness: kind.roughness, metalness: kind.metalness, envMapIntensity: kind.water ? 1.2 : 0.55,
+      dithering: true, fog: source.fog, toneMapped: source.toneMapped,
+    });
+    material.name = `enhanced:${source.name || label}`;
+    material.normalScale.setScalar(kind.normal);
+    const worldDetail = !kind.water && !source.transparent && source.alphaTest <= 0 && /world:|levels\//i.test(label);
+    material.userData = { ...source.userData, graphicsOwned: true, originalRoughness: kind.roughness, water: Boolean(kind.water), worldDetail };
+    if (worldDetail) installMicroDetail(material);
+    if (kind.water) material.color.multiply(new THREE.Color(0x92b7be));
+    this._pbrSources.set(material, source);
+    this._pbrMaterials.set(source, material);
+    this._configurePBRDetail(material, source);
+    return material;
+  }
+
+  _configurePBRDetail(material, source) {
+    const detail = ENHANCED_QUALITY[this._effectiveQuality].detailMaps;
+    const maps = detail ? this._surfaceMaps(source.map, material.userData.water) : null;
+    const micro = Boolean(detail && material.userData.worldDetail);
+    const hadMicro = Object.hasOwn(material.defines, 'GULMAN_MICRODETAIL');
+    if (micro !== hadMicro) {
+      if (micro) material.defines.GULMAN_MICRODETAIL = 1;
+      else delete material.defines.GULMAN_MICRODETAIL;
+      material.needsUpdate = true;
+    }
+    const normal = maps?.normal ?? null, roughness = maps?.roughness ?? null;
+    if (material.normalMap !== normal || material.roughnessMap !== roughness) {
+      material.normalMap = normal;
+      material.roughnessMap = roughness;
+      material.needsUpdate = true;
+    }
+  }
+
+  _configureObject(object, label = '') {
+    if (!object.isMesh || !object.material || object.userData?.graphicsOwned) return;
+    let saved = this._objectStates.get(object);
+    if (!saved) {
+      const original = material => this._pbrSources.get(material) ?? material;
+      // Instanced crowd batches may be built from an already-enhanced actor.
+      const materials = Array.isArray(object.material) && object.material.some(m => this._pbrSources.has(m))
+        ? object.material.map(original) : Array.isArray(object.material) ? object.material : original(object.material);
+      saved = { material: materials, castShadow: object.castShadow, receiveShadow: object.receiveShadow };
+      this._objectStates.set(object, saved);
+    }
+    if (this.mode === 'enhanced') {
+      const convert = material => this._pbrMaterial(material, `${label} ${object.name}`, object);
+      object.material = Array.isArray(saved.material) ? saved.material.map(convert) : convert(saved.material);
+      let viewmodel = false;
+      for (let parent = object.parent; parent; parent = parent.parent) if (parent.isCamera) { viewmodel = true; break; }
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      const solid = materials.some(material => material.isMeshStandardMaterial && (!material.transparent || material.alphaTest > 0));
+      object.castShadow = this.enhancedLighting && solid && !viewmodel;
+      object.receiveShadow = this.enhancedLighting && solid && !viewmodel;
+    } else {
+      object.material = saved.material;
+      object.castShadow = saved.castShadow;
+      object.receiveShadow = saved.receiveShadow;
+    }
+  }
+
+  _disposeMaterials() {
+    for (const material of this._pbrMaterials.values()) material.dispose();
+    for (const maps of this._detailMaps.values()) {
+      maps?.normal.dispose(); maps?.roughness.dispose();
+    }
+    this._pbrMaterials.clear();
+    this._detailMaps.clear();
+    this._waterMaps.clear();
+    // Keep source links weakly while asynchronous model requests finish; they
+    // allow a stale converted clone to recover its borrowed original material.
+  }
+
   applyRenderer(renderer) {
     if (!renderer || this._disposed) return this;
     this._renderer = renderer;
@@ -152,27 +472,64 @@ export class GraphicsManager {
       outputColorSpace: renderer.outputColorSpace,
       pixelRatio: renderer.getPixelRatio?.() ?? 1,
       shadows: renderer.shadowMap?.enabled,
+      shadowType: renderer.shadowMap?.type,
+      shadowAutoUpdate: renderer.shadowMap?.autoUpdate,
+      shadowNeedsUpdate: renderer.shadowMap?.needsUpdate,
     });
     const original = this._rendererStates.get(renderer);
     const maximum = Number(renderer.capabilities?.getMaxAnisotropy?.() ?? 1);
     this._maxAnisotropy = Number.isFinite(maximum) ? Math.max(1, maximum) : 1;
-    renderer.setPixelRatio(this.profile.pixelRatio);
-    renderer.toneMapping = this.enhancedLighting ? THREE.ACESFilmicToneMapping : original.toneMapping;
-    renderer.toneMappingExposure = this.enhancedLighting ? 1.08 : original.toneMappingExposure;
+    if (renderer.getSize) {
+      renderer.getSize(this._rendererSize);
+      this._width = Math.max(1, this._rendererSize.x);
+      this._height = Math.max(1, this._rendererSize.y);
+    }
+    this._applyResolution();
+    renderer.toneMapping = this.mode === 'enhanced' ? THREE.ACESFilmicToneMapping : original.toneMapping;
+    renderer.toneMappingExposure = this.mode === 'enhanced' ? 0.9 : original.toneMappingExposure;
     renderer.outputColorSpace = original.outputColorSpace;
-    if (renderer.shadowMap) renderer.shadowMap.enabled = this.mode === 'potato' ? false : original.shadows;
+    if (renderer.shadowMap) {
+      renderer.shadowMap.enabled = this.enhancedLighting ? true : this.mode === 'potato' ? false : original.shadows;
+      renderer.shadowMap.type = this.enhancedLighting ? THREE.PCFSoftShadowMap : original.shadowType;
+      renderer.shadowMap.autoUpdate = this.enhancedLighting ? false : original.shadowAutoUpdate;
+      if (!this.enhancedLighting) renderer.shadowMap.needsUpdate = original.shadowNeedsUpdate;
+    }
     for (const texture of this._textures) this._configureTexture(texture);
+    return this;
+  }
+
+  _applyResolution() {
+    if (!this._renderer) return;
+    let ratio = this.profile.pixelRatio;
+    if (this.mode === 'enhanced') {
+      const quality = ENHANCED_QUALITY[this._effectiveQuality];
+      ratio = Math.min(ratio, quality.pixelRatioCap, Math.sqrt(quality.maxPixels / (this._width * this._height))) * this._renderScale;
+    }
+    this._pixelRatio = Math.max(0.01, ratio);
+    this._renderer.setPixelRatio(this._pixelRatio);
+    this._post?.setQuality(this._effectiveQuality);
+    this._post?.setSize(this._width, this._height, this._pixelRatio);
+  }
+
+  resize(width, height) {
+    this._width = Math.max(1, Number(width) || 1);
+    this._height = Math.max(1, Number(height) || 1);
+    this._applyResolution();
     return this;
   }
 
   applyScene(scene, player = this._player) {
     if (!scene || this._disposed) return this;
-    if (scene !== this._scene) this._shadow?.removeFromParent();
+    if (this._scene && scene !== this._scene) this.releaseScene(this._scene);
     this._scene = scene;
     this._player = player;
     let original = this._sceneStates.get(scene);
     if (!original) {
-      original = { fog: scene.fog, lights: new Map() };
+      original = {
+        fog: scene.fog, background: scene.background, environment: scene.environment,
+        environmentIntensity: scene.environmentIntensity, backgroundIntensity: scene.backgroundIntensity,
+        backgroundBlurriness: scene.backgroundBlurriness, lights: new Map(), objects: new Set(),
+      };
       this._sceneStates.set(scene, original);
     }
     scene.traverse(object => {
@@ -180,6 +537,9 @@ export class GraphicsManager {
       if (object.isHemisphereLight || object.isAmbientLight || object.isDirectionalLight) {
         if (!original.lights.has(object)) original.lights.set(object, {
           intensity: object.intensity, color: object.color.clone(), groundColor: object.groundColor?.clone(),
+          position: object.position.clone(), castShadow: object.castShadow,
+          targetPosition: object.target?.position.clone(), targetParent: object.target?.parent,
+          shadow: shadowState(object),
         });
       }
       if (object.material) {
@@ -187,6 +547,8 @@ export class GraphicsManager {
         for (const material of materials) for (const value of Object.values(material)) {
           if (value?.isTexture) this._configureTexture(value);
         }
+        this._configureObject(object);
+        original.objects.add(object);
       }
     });
     for (const [light, saved] of original.lights) {
@@ -195,27 +557,176 @@ export class GraphicsManager {
       if (saved.groundColor) light.groundColor.copy(saved.groundColor);
       if (this.enhancedLighting) {
         if (light.isDirectionalLight) {
-          light.intensity *= 1.25;
-          light.color.lerp(new THREE.Color(0xffefcf), 0.16);
+          light.intensity = Math.max(2.1, saved.intensity * 1.5);
+          light.color.set(0xffdfb3);
         } else {
-          light.intensity *= 0.78;
-          light.color.lerp(new THREE.Color(0xe2edff), 0.12);
-          light.groundColor?.lerp(new THREE.Color(0x685e4a), 0.2);
+          light.intensity = saved.intensity * 0.23;
+          light.color.set(0xc7ddf5);
+          light.groundColor?.set(0x857458);
         }
       }
     }
     scene.fog = original.fog;
+    scene.background = original.background;
+    scene.environment = original.environment;
+    scene.environmentIntensity = original.environmentIntensity;
+    scene.backgroundIntensity = original.backgroundIntensity;
+    scene.backgroundBlurriness = original.backgroundBlurriness;
     if (this.enhancedLighting && original.fog?.isFog) {
       const fog = original.enhancedFog ??= original.fog.clone();
-      fog.near = original.fog.near * 1.05;
-      fog.far = Math.max(fog.near + 1, original.fog.far * 0.94);
+      fog.near = Math.min(original.fog.near, 100);
+      fog.far = Math.max(fog.near + 1, Math.min(original.fog.far, 460));
+      fog.color.copy(original.fog.color).lerp(new THREE.Color(0xc7d8e1), 0.5);
       scene.fog = fog;
+    }
+    if (this.enhancedLighting) {
+      this._ensureEnvironment();
+      if (this._skyTexture) {
+        scene.background = this._skyTexture;
+        scene.backgroundIntensity = 1;
+        scene.backgroundBlurriness = 0;
+      }
+      if (this._environment) {
+        scene.environment = this._environment.texture;
+        scene.environmentIntensity = 0.55;
+      }
+      this._sun = [...original.lights.keys()].find(light => light.isDirectionalLight) ?? null;
+      if (this._sun) {
+        if (!this._sun.target.parent) scene.add(this._sun.target);
+        this._sun.castShadow = true;
+        this._configureSun();
+      }
+    } else {
+      this._restoreSun(original);
+      this._sun = null;
     }
     if (this.enhancedLighting && player) {
       this._ensureShadow();
       scene.add(this._shadow);
       this.update((player.group ?? player).position);
     } else if (this._shadow) this._shadow.visible = false;
+    return this;
+  }
+
+  _ensureEnvironment() {
+    if (!this._skyTexture) {
+      const width = 512, height = 256;
+      const pixels = new Uint16Array(width * height * 4);
+      const zenith = new THREE.Color(0x2368ad), horizon = new THREE.Color(0xb8d4e3);
+      const ground = new THREE.Color(0x6b6655);
+      const direction = new THREE.Vector3(), color = new THREE.Color();
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const theta = ((x + 0.5) / width - 0.5) * Math.PI * 2;
+        const elevation = ((y + 0.5) / height - 0.5) * Math.PI;
+        direction.set(Math.cos(elevation) * Math.cos(theta), Math.sin(elevation), Math.cos(elevation) * Math.sin(theta));
+        if (direction.y >= 0) color.copy(horizon).lerp(zenith, Math.pow(direction.y, 0.45)).multiplyScalar(0.95);
+        else color.copy(horizon).lerp(ground, Math.min(1, -direction.y * 4)).multiplyScalar(0.7);
+        const sunlight = Math.max(0, direction.dot(this._sunDirection));
+        const halo = Math.pow(sunlight, 180) * 0.8 + Math.pow(sunlight, 4500) * 24;
+        // Layered low-frequency wisps, brighter toward the sun-facing side.
+        const coverage = Math.sin(direction.x * 8 + direction.z * 4 + Math.sin(direction.z * 11) * 0.6)
+          + Math.sin(direction.z * 13 - direction.y * 5) * 0.42
+          + Math.sin(direction.x * 29 + direction.z * 17) * 0.14;
+        const cloud = direction.y > 0.025 ? THREE.MathUtils.smoothstep(coverage, 0.25, 1.15) * (0.26 + sunlight * 0.1) * Math.min(1, direction.y * 8) : 0;
+        const i = (y * width + x) * 4;
+        pixels[i] = THREE.DataUtils.toHalfFloat(color.r + halo + cloud);
+        pixels[i + 1] = THREE.DataUtils.toHalfFloat(color.g + halo * 0.86 + cloud);
+        pixels[i + 2] = THREE.DataUtils.toHalfFloat(color.b + halo * 0.65 + cloud);
+        pixels[i + 3] = THREE.DataUtils.toHalfFloat(1);
+      }
+      const sky = new THREE.DataTexture(pixels, width, height, THREE.RGBAFormat, THREE.HalfFloatType);
+      sky.name = 'enhanced-procedural-daylight';
+      sky.userData.graphicsOwned = true;
+      sky.mapping = THREE.EquirectangularReflectionMapping;
+      sky.colorSpace = THREE.LinearSRGBColorSpace;
+      sky.minFilter = sky.magFilter = THREE.LinearFilter;
+      sky.needsUpdate = true;
+      this._skyTexture = sky;
+    }
+    if (!this._environment && !this._environmentFailed && this._renderer?.isWebGLRenderer) {
+      let generator;
+      try {
+        generator = new THREE.PMREMGenerator(this._renderer);
+        this._environment = generator.fromEquirectangular(this._skyTexture);
+        this._environment.texture.userData.graphicsOwned = true;
+      } catch (error) {
+        // An unsupported float target must not make the game unplayable.
+        console.warn('Enhanced environment unavailable:', error);
+        this._environmentFailed = true;
+      } finally { generator?.dispose(); }
+    }
+  }
+
+  _configureSun() {
+    if (!this._sun) return;
+    const quality = ENHANCED_QUALITY[this._effectiveQuality];
+    const shadow = this._sun.shadow;
+    const borrowed = this._sceneStates.get(this._scene)?.lights.get(this._sun)?.shadow;
+    if (shadow.map && shadow.map === borrowed?.map) shadow.map = null;
+    if (shadow.mapPass && shadow.mapPass === borrowed?.mapPass) shadow.mapPass = null;
+    if (shadow.mapSize.x !== quality.shadowSize) {
+      shadow.map?.dispose(); shadow.map = null;
+      shadow.mapPass?.dispose(); shadow.mapPass = null;
+    }
+    shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
+    const camera = shadow.camera;
+    camera.left = camera.bottom = -quality.shadowRadius;
+    camera.right = camera.top = quality.shadowRadius;
+    camera.near = 1; camera.far = 190;
+    camera.updateProjectionMatrix();
+    shadow.bias = -0.00025;
+    shadow.normalBias = 0.055;
+    shadow.radius = 2;
+    shadow.autoUpdate = false;
+    shadow.needsUpdate = true;
+    this._shadowElapsed = 1;
+    if (this._renderer?.shadowMap) this._renderer.shadowMap.needsUpdate = true;
+  }
+
+  _restoreSun(original) {
+    for (const [light, saved] of original.lights) {
+      if (!light.isDirectionalLight) continue;
+      light.castShadow = saved.castShadow;
+      light.position.copy(saved.position);
+      light.target.position.copy(saved.targetPosition);
+      if (!saved.targetParent) light.target.removeFromParent();
+      else if (light.target.parent !== saved.targetParent) saved.targetParent.add(light.target);
+      light.target.updateMatrixWorld(true);
+      const shadow = light.shadow, previous = saved.shadow;
+      if (shadow.map && shadow.map !== previous.map) shadow.map.dispose();
+      if (shadow.mapPass && shadow.mapPass !== previous.mapPass) shadow.mapPass.dispose();
+      shadow.map = previous.map; shadow.mapPass = previous.mapPass;
+      shadow.mapSize.copy(previous.mapSize);
+      for (const key of ['bias', 'normalBias', 'radius', 'autoUpdate', 'needsUpdate']) shadow[key] = previous[key];
+      Object.assign(shadow.camera, previous.camera);
+      shadow.camera.updateProjectionMatrix();
+    }
+  }
+
+  releaseScene(scene = this._scene) {
+    const saved = scene && this._sceneStates.get(scene);
+    if (!saved) return this;
+    // Include weapons attached asynchronously since the last applyScene call.
+    scene.traverse(object => { if (this._objectStates.has(object) && !object.userData?.graphicsOwned) saved.objects.add(object); });
+    for (const object of saved.objects) {
+      if (object.userData?.graphicsOwned) continue;
+      const original = this._objectStates.get(object);
+      if (original) { object.material = original.material; object.castShadow = original.castShadow; object.receiveShadow = original.receiveShadow; }
+    }
+    for (const [light, original] of saved.lights) {
+      light.intensity = original.intensity; light.color.copy(original.color);
+      if (original.groundColor) light.groundColor.copy(original.groundColor);
+    }
+    this._restoreSun(saved);
+    scene.fog = saved.fog; scene.background = saved.background; scene.environment = saved.environment;
+    scene.environmentIntensity = saved.environmentIntensity;
+    scene.backgroundIntensity = saved.backgroundIntensity; scene.backgroundBlurriness = saved.backgroundBlurriness;
+    this._sceneStates.delete(scene);
+    if (this._scene === scene) {
+      this._shadow?.removeFromParent();
+      this._sun = this._scene = this._player = null;
+      this._disposeMaterials();
+    }
     return this;
   }
 
@@ -247,8 +758,33 @@ export class GraphicsManager {
     this._shadow = shadow;
   }
 
-  /** A single 2-triangle contact decal, no geometry raycasts or shadow pass. */
-  update(position, { groundY, grounded = true } = {}) {
+  /** Track only a local sun frustum; schedule shadow refresh independently of FPS. */
+  update(position, { groundY, grounded = true, dt = 1 / 60, time, camera } = {}) {
+    this._time = Number.isFinite(time) ? time : this._time + Math.max(0, dt);
+    if (this.mode === 'enhanced' && ENHANCED_QUALITY[this._effectiveQuality].detailMaps) {
+      for (const map of this._waterMaps) map.offset.set(map.userData.baseOffset.x + this._time * 0.012, map.userData.baseOffset.y + this._time * 0.007);
+    }
+    if (position && Number.isFinite(position.x + position.y + position.z)) this._lastPosition.copy(position);
+    if (this.enhancedLighting && this._sun) {
+      const quality = ENHANCED_QUALITY[this._effectiveQuality];
+      this._shadowElapsed += Math.min(0.25, Math.max(0, dt));
+      if (this._shadowElapsed >= 1 / quality.shadowFPS) {
+        this._shadowElapsed = 0;
+        // Snap the focus to world-space texels to reduce crawling at slow speeds.
+        const texel = quality.shadowRadius * 2 / quality.shadowSize;
+        const x = Math.round(this._lastPosition.x / texel) * texel;
+        const z = Math.round(this._lastPosition.z / texel) * texel;
+        this._sun.target.position.set(x, this._lastPosition.y, z);
+        this._sun.position.copy(this._sun.target.position).addScaledVector(this._sunDirection, 100);
+        this._sun.target.updateMatrixWorld();
+        this._sun.shadow.needsUpdate = true;
+        if (this._renderer?.shadowMap) this._renderer.shadowMap.needsUpdate = true;
+      }
+    }
+    // First-person arms/weapons must never cast a huge camera-attached shadow.
+    if (camera && this.mode === 'enhanced') camera.traverse(object => {
+      if (object.isMesh && !object.userData?.graphicsOwned) { object.castShadow = false; object.receiveShadow = false; }
+    });
     const shadow = this._shadow;
     if (!shadow) return;
     const measuredGround = Number.isFinite(groundY);
@@ -258,18 +794,21 @@ export class GraphicsManager {
     if (!shadow.visible) return;
     shadow.position.set(position.x, floor + 0.018, position.z);
     shadow.scale.setScalar(1 + Math.min(height, 2) * 0.22);
-    shadow.material.opacity = Math.max(0, 1 - height / 2.5);
+    shadow.material.opacity = Math.max(0, 1 - height / 2.5) * 0.6;
   }
 
   setMode(mode, { renderer = this._renderer, scene = this._scene, player = this._player } = {}) {
     if (!Object.hasOwn(GRAPHICS_MODES, mode)) throw new RangeError(`Неизвестный режим графики: ${mode}`);
+    const previous = this.mode;
     this.mode = mode;
+    if (previous !== mode) { this._warmup = 2; this._adaptiveElapsed = 0; this._renderScale = 1; }
     this._persist();
     this._applyDocument();
     if (renderer) this.applyRenderer(renderer);
     else for (const texture of this._textures) this._configureTexture(texture);
     if (scene) this.applyScene(scene, player);
-    this.onChange(this.mode, { lighting: this.lighting, profile: this.profile });
+    if (mode !== 'enhanced') this._disposeEnhanced();
+    this.onChange(this.mode, { lighting: this.lighting, quality: this.quality, profile: this.profile });
     return this;
   }
 
@@ -278,12 +817,94 @@ export class GraphicsManager {
     return this.setMode(this.mode, context);
   }
 
+  setQuality(quality, context) {
+    if (!['auto', 'high', 'low'].includes(quality)) throw new RangeError(`Неизвестное качество: ${quality}`);
+    this.quality = quality;
+    this._effectiveQuality = quality === 'low' ? 'low' : 'high';
+    this._renderScale = 1;
+    this._warmup = 2;
+    this._adaptiveElapsed = 0;
+    for (const [source, material] of this._pbrMaterials) this._configurePBRDetail(material, source);
+    return this.setMode(this.mode, context);
+  }
+
+  _adapt(dt) {
+    if (this.mode !== 'enhanced' || this.quality !== 'auto' || !Number.isFinite(dt) || dt <= 0 || dt > 0.25) return;
+    if (this._warmup > 0) { this._warmup -= dt; return; }
+    this._averageFrame += (dt - this._averageFrame) * 0.04;
+    this._adaptiveElapsed += dt;
+    if (this._adaptiveElapsed < 3) return;
+    let changed = false;
+    if (this._averageFrame > 1 / 40) {
+      const next = Math.max(0.6, this._renderScale - 0.15);
+      changed = next !== this._renderScale;
+      this._renderScale = next;
+      if (this._averageFrame > 1 / 30 || this._renderScale <= 0.7) { changed ||= this._effectiveQuality !== 'low'; this._effectiveQuality = 'low'; }
+    } else if (this._averageFrame < 1 / 57 && this._adaptiveElapsed > 8) {
+      if (this._renderScale < 1) { this._renderScale = Math.min(1, this._renderScale + 0.1); changed = true; }
+      else if (this._effectiveQuality === 'low') { this._effectiveQuality = 'high'; this._renderScale = 0.8; changed = true; }
+    }
+    if (!changed) return;
+    this._adaptiveElapsed = 0;
+    this._applyResolution();
+    this._configureSun();
+    for (const [source, material] of this._pbrMaterials) this._configurePBRDetail(material, source);
+  }
+
+  render(renderer, scene, camera, dt = 1 / 60) {
+    if (!renderer || !scene || !camera) return;
+    if (renderer !== this._renderer) this.applyRenderer(renderer);
+    if (this.mode !== 'enhanced') { renderer.render(scene, camera); return; }
+    this._adapt(dt);
+    if (!this._postFailed) {
+      try {
+        if (!this._post) {
+          this._post = new EnhancedPostprocessing(renderer);
+          this._post.setQuality(this._effectiveQuality);
+        }
+        this._post.depthAO = this.enhancedLighting;
+        this._post.bloomStrength = this.enhancedLighting ? 0.12 : 0;
+        // Read logical dimensions here as root may resize after applyRenderer.
+        if (renderer.getSize) {
+          renderer.getSize(this._rendererSize);
+          if (this._rendererSize.x !== this._width || this._rendererSize.y !== this._height) this.resize(this._rendererSize.x, this._rendererSize.y);
+        }
+        this._post.setSize(this._width, this._height, this._pixelRatio);
+        this._post.render(scene, camera, dt);
+        return;
+      } catch (error) {
+        console.warn('Enhanced postprocessing unavailable; direct rendering continues:', error);
+        this._post?.dispose(); this._post = null; this._postFailed = true;
+        this._fallbackReason = String(error?.message ?? error);
+      }
+    }
+    renderer.render(scene, camera);
+  }
+
+  _disposeEnhanced() {
+    this._post?.dispose(); this._post = null;
+    this._environment?.dispose(); this._environment = null;
+    this._skyTexture?.dispose(); this._skyTexture = null;
+    this._disposeMaterials();
+    if (this._shadow) {
+      this._shadow.removeFromParent();
+      this._shadow.geometry.dispose(); this._shadow.material.map.dispose(); this._shadow.material.dispose();
+      this._shadow = null;
+    }
+    this._postFailed = false;
+    this._fallbackReason = null;
+    this._environmentFailed = false;
+  }
+
   dispose() {
     if (this._disposed) return;
     this.mode = 'original';
-    if (this._scene) this.applyScene(this._scene, null);
+    if (this._scene) this.releaseScene(this._scene);
     for (const texture of this._textures) this._configureTexture(texture, true);
-    for (const [assets, binding] of this._assetBindings) if (assets.texture === binding.wrapped) assets.texture = binding.original;
+    for (const [assets, binding] of this._assetBindings) {
+      if (assets.texture === binding.wrapped) assets.texture = binding.original;
+      if (assets.model === binding.wrappedModel) assets.model = binding.originalModel;
+    }
     const renderer = this._renderer;
     const saved = renderer && this._rendererStates.get(renderer);
     if (saved) {
@@ -291,14 +912,14 @@ export class GraphicsManager {
       renderer.toneMappingExposure = saved.toneMappingExposure;
       renderer.outputColorSpace = saved.outputColorSpace;
       renderer.setPixelRatio(saved.pixelRatio);
-      if (renderer.shadowMap) renderer.shadowMap.enabled = saved.shadows;
+      if (renderer.shadowMap) {
+        renderer.shadowMap.enabled = saved.shadows;
+        renderer.shadowMap.type = saved.shadowType;
+        renderer.shadowMap.autoUpdate = saved.shadowAutoUpdate;
+        renderer.shadowMap.needsUpdate = saved.shadowNeedsUpdate;
+      }
     }
-    if (this._shadow) {
-      this._shadow.removeFromParent();
-      this._shadow.geometry.dispose();
-      this._shadow.material.map.dispose();
-      this._shadow.material.dispose();
-    }
+    this._disposeEnhanced();
     this._shadow = this._scene = this._player = this._renderer = null;
     this._assetBindings.clear();
     this._textures.clear();

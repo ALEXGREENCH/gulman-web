@@ -115,3 +115,12 @@ body.dragging #game{cursor:grabbing}
 .original-ui.has-comic>.comic-controls{top:auto;bottom:4px;opacity:1;max-width:100%;font-size:15px;gap:6px}
 .original-ui.has-comic>.comic-controls button{font-size:15px;padding:4px 8px}
 @media(max-width:700px){.original-ui.has-comic>.comic-controls{gap:3px;font-size:11px}.original-ui.has-comic>.comic-controls button{font-size:11px;padding:4px}}
+
+#enhanced-controls{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);display:grid;text-align:center;gap:7px;font:11px Arial,sans-serif;letter-spacing:.4px;color:#e9e6d7}
+#combat-state{font-size:12px;letter-spacing:1.4px;min-height:15px}
+#reload-meter{position:absolute;left:50%;top:58%;transform:translateX(-50%);width:84px;height:3px;background:#ffffff28}
+#reload-progress{height:100%;display:block;background:#ffe0a1;box-shadow:0 0 10px #ffbd5a}
+html[data-graphics=enhanced] #hitmarker{font:22px Arial,sans-serif;color:#fff4dc}
+html[data-graphics=enhanced] #crosshair{width:25px;height:25px;filter:drop-shadow(0 0 2px #fff);transition:opacity .15s}
+@media(pointer:coarse){#enhanced-controls>span{display:none}#enhanced-controls{bottom:78px}}
+@media(max-width:700px){#enhanced-controls{max-width:55vw;font-size:9px}#touch-controls .touch-actions{gap:3px}#hud .touch-actions button{width:36px}#camera-switch{font-size:10px}}
