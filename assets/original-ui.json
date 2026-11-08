@@ -1,0 +1,1783 @@
+{
+  "version": 1,
+  "referenceSize": [
+    1024,
+    768
+  ],
+  "rectFormat": "left-top-right-bottom",
+  "menus": {
+    "main": {
+      "source": "Menu_ГЛАВНОЕ МЕНЮ.Menu_Save",
+      "backgroundKey": "textures/menus/1 меню.jpg",
+      "image": "assets/images/1-e2e7910f0277.jpg",
+      "background": "assets/images/1-e2e7910f0277.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1134,
+        823
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "EVEL1",
+          "rect": [
+            160,
+            250,
+            410,
+            310
+          ],
+          "rawRect": [
+            160,
+            250,
+            410,
+            310
+          ],
+          "hitRect": [
+            130.93,
+            203.43,
+            370.23,
+            281.82
+          ],
+          "label": "Играть",
+          "painted": true
+        },
+        {
+          "id": 1,
+          "command": "ЗАГРУЗКА",
+          "rect": [
+            185,
+            333,
+            430,
+            390
+          ],
+          "rawRect": [
+            185,
+            333,
+            430,
+            390
+          ],
+          "hitRect": [
+            142.67,
+            280.88,
+            397.32,
+            361.14
+          ],
+          "label": "Загрузка",
+          "painted": true
+        },
+        {
+          "id": 2,
+          "command": "НАСТРОЙКИ",
+          "rect": [
+            175,
+            410,
+            470,
+            480
+          ],
+          "rawRect": [
+            175,
+            410,
+            470,
+            480
+          ],
+          "hitRect": [
+            142.67,
+            362.07,
+            432.54,
+            445.12
+          ],
+          "label": "Настройки",
+          "painted": true
+        },
+        {
+          "id": 3,
+          "command": "АВТОРЫ",
+          "rect": [
+            210,
+            500,
+            435,
+            582
+          ],
+          "rawRect": [
+            210,
+            500,
+            435,
+            582
+          ],
+          "hitRect": [
+            170.67,
+            455.39,
+            391.0,
+            535.64
+          ],
+          "label": "Авторы",
+          "painted": true
+        },
+        {
+          "id": 4,
+          "command": "ВЫХОД",
+          "rect": [
+            214,
+            599,
+            388,
+            665
+          ],
+          "rawRect": [
+            214,
+            599,
+            388,
+            665
+          ],
+          "hitRect": [
+            154.41,
+            537.51,
+            383.77,
+            619.63
+          ],
+          "label": "Выход",
+          "painted": true
+        }
+      ]
+    },
+    "levels": {
+      "source": "Menu_ЗАГРУЗКА.Menu_Save",
+      "backgroundKey": "textures/menus/меню2 фин.jpg",
+      "image": "assets/images/2-d61de2c18d2b.jpg",
+      "background": "assets/images/2-d61de2c18d2b.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1134,
+        873
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "EVEL1",
+          "rect": [
+            182,
+            193,
+            335,
+            223
+          ],
+          "rawRect": [
+            182,
+            193,
+            335,
+            223
+          ],
+          "hitRect": [
+            94.81,
+            139.0,
+            361.2,
+            190.02
+          ],
+          "label": "Жаркий пляж",
+          "painted": true
+        },
+        {
+          "id": 1,
+          "command": "EVEL2",
+          "rect": [
+            206,
+            244,
+            349,
+            263
+          ],
+          "rawRect": [
+            206,
+            244,
+            349,
+            263
+          ],
+          "hitRect": [
+            99.33,
+            191.78,
+            382.87,
+            240.16
+          ],
+          "label": "Вендетта",
+          "painted": true
+        },
+        {
+          "id": 2,
+          "command": "EVEL3",
+          "rect": [
+            197,
+            293,
+            363,
+            321
+          ],
+          "rawRect": [
+            197,
+            293,
+            363,
+            321
+          ],
+          "hitRect": [
+            92.11,
+            241.92,
+            411.77,
+            291.19
+          ],
+          "label": "В Греции всё есть…",
+          "painted": true
+        },
+        {
+          "id": 3,
+          "command": "EVEL4",
+          "rect": [
+            217,
+            342,
+            384,
+            372
+          ],
+          "rawRect": [
+            217,
+            342,
+            384,
+            372
+          ],
+          "hitRect": [
+            88.49,
+            292.07,
+            423.51,
+            343.97
+          ],
+          "label": "Летучий голландец",
+          "painted": true
+        },
+        {
+          "id": 4,
+          "command": "EVEL5",
+          "rect": [
+            226,
+            396,
+            381,
+            425
+          ],
+          "rawRect": [
+            226,
+            396,
+            381,
+            425
+          ],
+          "hitRect": [
+            98.43,
+            344.85,
+            422.6,
+            392.36
+          ],
+          "label": "Золотая антилопа",
+          "painted": true
+        },
+        {
+          "id": 5,
+          "command": "EVEL6",
+          "rect": [
+            226,
+            447,
+            379,
+            470
+          ],
+          "rawRect": [
+            226,
+            447,
+            379,
+            470
+          ],
+          "hitRect": [
+            93.91,
+            393.24,
+            412.67,
+            440.74
+          ],
+          "label": "Увидеть Париж и…",
+          "painted": true
+        },
+        {
+          "id": 6,
+          "command": "EVEL7",
+          "rect": [
+            231,
+            494,
+            370,
+            521
+          ],
+          "rawRect": [
+            231,
+            494,
+            370,
+            521
+          ],
+          "hitRect": [
+            121.9,
+            441.62,
+            384.68,
+            490.01
+          ],
+          "label": "Зов предков",
+          "painted": true
+        },
+        {
+          "id": 7,
+          "command": "EVEL8",
+          "rect": [
+            214,
+            545,
+            373,
+            578
+          ],
+          "rawRect": [
+            214,
+            545,
+            373,
+            578
+          ],
+          "hitRect": [
+            68.63,
+            490.89,
+            399.13,
+            554.23
+          ],
+          "label": "Калинка малинка",
+          "painted": true
+        },
+        {
+          "id": 8,
+          "command": "ГЛАВНОЕ МЕНЮ",
+          "rect": [
+            858,
+            59,
+            1024,
+            129
+          ],
+          "rawRect": [
+            858,
+            59,
+            1024,
+            129
+          ],
+          "hitRect": [
+            812.7,
+            14.08,
+            1018.58,
+            86.21
+          ],
+          "label": "Главное меню",
+          "painted": true
+        }
+      ]
+    },
+    "settings": {
+      "source": "Menu_НАСТРОЙКИ.Menu_Save",
+      "backgroundKey": "textures/menus/меню4-настройки!.jpg",
+      "image": "assets/images/4-2ff25962bfb3.jpg",
+      "background": "assets/images/4-2ff25962bfb3.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1400,
+        1078
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ГРАФИКА",
+          "rect": [
+            416,
+            478,
+            620,
+            539
+          ],
+          "rawRect": [
+            416,
+            478,
+            620,
+            539
+          ],
+          "hitRect": [
+            387.66,
+            445.27,
+            577.83,
+            497.28
+          ],
+          "label": "Графика",
+          "painted": true
+        },
+        {
+          "id": 1,
+          "command": "ЗВУКИ",
+          "rect": [
+            421,
+            539,
+            608,
+            595
+          ],
+          "rawRect": [
+            421,
+            539,
+            608,
+            595
+          ],
+          "hitRect": [
+            387.66,
+            500.13,
+            552.23,
+            550.71
+          ],
+          "label": "Звуки",
+          "painted": true
+        },
+        {
+          "id": 2,
+          "command": "УПРАВЛЕНИЕ",
+          "rect": [
+            436,
+            585,
+            681,
+            644
+          ],
+          "rawRect": [
+            436,
+            585,
+            681,
+            644
+          ],
+          "hitRect": [
+            384.0,
+            552.85,
+            647.31,
+            604.85
+          ],
+          "label": "Управление",
+          "painted": true
+        }
+      ]
+    },
+    "graphics": {
+      "source": "Menu_ГРАФИКА.Menu_Save",
+      "backgroundKey": "textures/menus/графика.jpg",
+      "image": "assets/images/asset-27bb87bdf477.jpg",
+      "background": "assets/images/asset-27bb87bdf477.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1400,
+        1078
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ГЛАВНОЕ МЕНЮ",
+          "rect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "rawRect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "hitRect": [
+            16.09,
+            655.44,
+            300.62,
+            745.2
+          ],
+          "label": "Главное меню",
+          "painted": true
+        }
+      ]
+    },
+    "audio": {
+      "source": "Menu_ЗВУКИ.Menu_Save",
+      "backgroundKey": "textures/menus/музыка.jpg",
+      "image": "assets/images/asset-cbb4ae110f72.jpg",
+      "background": "assets/images/asset-cbb4ae110f72.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1400,
+        1078
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ГЛАВНОЕ МЕНЮ",
+          "rect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "rawRect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "hitRect": [
+            16.09,
+            655.44,
+            300.62,
+            745.2
+          ],
+          "label": "Главное меню",
+          "painted": true
+        }
+      ]
+    },
+    "controls": {
+      "source": "Menu_УПРАВЛЕНИЕ.Menu_Save",
+      "backgroundKey": "textures/menus/кнопки.jpg",
+      "image": "assets/images/asset-a949b1415e4f.jpg",
+      "background": "assets/images/asset-a949b1415e4f.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1400,
+        1078
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ГЛАВНОЕ МЕНЮ",
+          "rect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "rawRect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "hitRect": [
+            16.09,
+            655.44,
+            300.62,
+            745.2
+          ],
+          "label": "Главное меню",
+          "painted": true
+        }
+      ]
+    },
+    "credits": {
+      "source": "Menu_Авторы.Menu_Save",
+      "backgroundKey": "textures/menus/меню участие.jpg",
+      "image": "assets/images/asset-e916e8aeafd9.jpg",
+      "background": "assets/images/asset-e916e8aeafd9.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1134,
+        873
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ГЛАВНОЕ МЕНЮ",
+          "rect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "rawRect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "hitRect": [
+            77,
+            697,
+            334,
+            768
+          ],
+          "label": "Главное меню",
+          "painted": false
+        }
+      ]
+    },
+    "shop": {
+      "source": "Menu_BY.Menu_Save",
+      "backgroundKey": "textures/menus/магазин.jpg",
+      "image": "assets/images/asset-0cdd81591c12.jpg",
+      "background": "assets/images/asset-0cdd81591c12.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1168,
+        878
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "В=ИГРУ",
+          "rect": [
+            827,
+            532,
+            1024,
+            744
+          ],
+          "rawRect": [
+            827,
+            532,
+            1024,
+            744
+          ],
+          "hitRect": [
+            775.89,
+            580.81,
+            1018.74,
+            765.38
+          ],
+          "label": "В игру",
+          "painted": true
+        },
+        {
+          "id": 1,
+          "command": "ПАТРОНЫ>3>",
+          "rect": [
+            113,
+            379,
+            273,
+            515
+          ],
+          "rawRect": [
+            113,
+            379,
+            273,
+            515
+          ],
+          "hitRect": [
+            32.44,
+            311.4,
+            201.64,
+            474.97
+          ],
+          "label": "Граната",
+          "painted": true
+        },
+        {
+          "id": 2,
+          "command": "ПАТРОНЫ>4>",
+          "rect": [
+            95,
+            131,
+            393,
+            289
+          ],
+          "rawRect": [
+            95,
+            131,
+            393,
+            289
+          ],
+          "hitRect": [
+            15.78,
+            65.6,
+            320.0,
+            253.67
+          ],
+          "label": "БигГан",
+          "painted": true
+        }
+      ]
+    },
+    "gameOver": {
+      "source": "GameOver.Menu_Save",
+      "backgroundKey": "textures/menus/гейм овер.jpg",
+      "image": "assets/images/asset-9d3147424807.jpg",
+      "background": "assets/images/asset-9d3147424807.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1280,
+        1024
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ReStart",
+          "rect": [
+            227,
+            500,
+            1024,
+            800
+          ],
+          "rawRect": [
+            227,
+            500,
+            1024,
+            800
+          ],
+          "hitRect": [
+            227,
+            500,
+            1024,
+            768
+          ],
+          "label": "Начать заново",
+          "painted": false
+        }
+      ]
+    },
+    "exit": {
+      "source": "Menu_ВЫХОД.Menu_Save",
+      "backgroundKey": "textures/menus/конец сам.jpg",
+      "image": "assets/images/asset-468111c6bc19.jpg",
+      "background": "assets/images/asset-468111c6bc19.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1196,
+        850
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ВЫХОД=ДА",
+          "rect": [
+            64,
+            579,
+            301,
+            768
+          ],
+          "rawRect": [
+            64,
+            579,
+            301,
+            768
+          ],
+          "hitRect": [
+            34.25,
+            524.05,
+            303.95,
+            763.48
+          ],
+          "label": "Да, завершить игру",
+          "painted": true
+        },
+        {
+          "id": 1,
+          "command": "ГЛАВНОЕ МЕНЮ",
+          "rect": [
+            827,
+            532,
+            1024,
+            744
+          ],
+          "rawRect": [
+            827,
+            532,
+            1024,
+            744
+          ],
+          "hitRect": [
+            762.01,
+            519.53,
+            1023.14,
+            763.48
+          ],
+          "label": "Нет, в главное меню",
+          "painted": true
+        }
+      ]
+    },
+    "test": {
+      "source": "Menu_test.Menu_Save",
+      "backgroundKey": "textures/menus/конец сам.jpg",
+      "image": "assets/images/asset-468111c6bc19.jpg",
+      "background": "assets/images/asset-468111c6bc19.jpg",
+      "referenceSize": [
+        1024,
+        768
+      ],
+      "imageSize": [
+        1196,
+        850
+      ],
+      "hotspots": [
+        {
+          "id": 0,
+          "command": "ВЫХОД",
+          "rect": [
+            64,
+            579,
+            301,
+            768
+          ],
+          "rawRect": [
+            64,
+            579,
+            301,
+            768
+          ],
+          "hitRect": [
+            34.25,
+            524.05,
+            303.95,
+            763.48
+          ],
+          "label": "Выход",
+          "painted": true
+        },
+        {
+          "id": 1,
+          "command": "ГЛАВНОЕ МЕНЮ",
+          "rect": [
+            827,
+            532,
+            1024,
+            744
+          ],
+          "rawRect": [
+            827,
+            532,
+            1024,
+            744
+          ],
+          "hitRect": [
+            762.01,
+            519.53,
+            1023.14,
+            763.48
+          ],
+          "label": "Главное меню",
+          "painted": true
+        }
+      ]
+    }
+  },
+  "hud": {
+    "health": {
+      "originalKey": "textures/интерфейс/здоровье.bmp",
+      "image": "assets/ui/health.png",
+      "url": "assets/ui/health.png",
+      "size": [
+        124,
+        137
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 8491
+    },
+    "ammo": {
+      "originalKey": "textures/интерфейс/патроны.bmp",
+      "image": "assets/ui/ammo.png",
+      "url": "assets/ui/ammo.png",
+      "size": [
+        114,
+        102
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 5932
+    },
+    "money": {
+      "originalKey": "textures/интерфейс/баксы.bmp",
+      "image": "assets/ui/money.png",
+      "url": "assets/ui/money.png",
+      "size": [
+        79,
+        87
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 3932
+    },
+    "pistol": {
+      "originalKey": "textures/интерфейс/пистолет-1.bmp",
+      "image": "assets/ui/pistol.png",
+      "url": "assets/ui/pistol.png",
+      "size": [
+        177,
+        95
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 11937
+    },
+    "rifle": {
+      "originalKey": "textures/интерфейс/автомат-1.bmp",
+      "image": "assets/ui/rifle.png",
+      "url": "assets/ui/rifle.png",
+      "size": [
+        177,
+        95
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 10932
+    },
+    "grenade": {
+      "originalKey": "textures/интерфейс/granate-1.bmp",
+      "image": "assets/ui/grenade.png",
+      "url": "assets/ui/grenade.png",
+      "size": [
+        177,
+        95
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 12648
+    },
+    "bigGun": {
+      "originalKey": "textures/интерфейс/granate-2.bmp",
+      "image": "assets/ui/bigGun.png",
+      "url": "assets/ui/bigGun.png",
+      "size": [
+        177,
+        95
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 9700
+    },
+    "crosshair": {
+      "originalKey": "textures/chross_x.bmp",
+      "image": "assets/ui/crosshair.png",
+      "url": "assets/ui/crosshair.png",
+      "size": [
+        53,
+        49
+      ],
+      "colorKey": [
+        255,
+        255,
+        255
+      ],
+      "transparentPixels": 2431
+    },
+    "crosshairBlue": {
+      "originalKey": "textures/x1.bmp",
+      "image": "assets/ui/crosshairBlue.png",
+      "url": "assets/ui/crosshairBlue.png",
+      "size": [
+        32,
+        32
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 750
+    },
+    "crosshairRed": {
+      "originalKey": "textures/x2.bmp",
+      "image": "assets/ui/crosshairRed.png",
+      "url": "assets/ui/crosshairRed.png",
+      "size": [
+        32,
+        32
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 824
+    },
+    "pointerBlue": {
+      "originalKey": "textures/x3.bmp",
+      "image": "assets/ui/pointerBlue.png",
+      "url": "assets/ui/pointerBlue.png",
+      "size": [
+        32,
+        32
+      ],
+      "colorKey": [
+        0,
+        0,
+        0
+      ],
+      "transparentPixels": 720
+    },
+    "frame": {
+      "originalKey": "textures/рамка.jpg",
+      "image": "assets/images/asset-e765cdabab98.jpg",
+      "url": "assets/images/asset-e765cdabab98.jpg",
+      "size": [
+        1280,
+        1024
+      ]
+    },
+    "handCursor": {
+      "originalKey": "textures/hud/рука4!.bmp",
+      "image": "assets/images/4-03d972884a99.png",
+      "url": "assets/images/4-03d972884a99.png",
+      "size": [
+        172,
+        165
+      ]
+    }
+  },
+  "frames": {
+    "default": "assets/images/asset-e765cdabab98.jpg"
+  },
+  "extras": {
+    "copyrightSplash": {
+      "originalKey": "textures/menus/1заставка.jpg",
+      "image": "assets/images/1-12a299838c89.jpg",
+      "url": "assets/images/1-12a299838c89.jpg",
+      "size": [
+        1280,
+        1024
+      ]
+    },
+    "finalCredits": {
+      "originalKey": "textures/menus/участие конец2.jpg",
+      "image": "assets/images/2-1c744d964e4b.jpg",
+      "url": "assets/images/2-1c744d964e4b.jpg",
+      "size": [
+        1280,
+        1024
+      ]
+    },
+    "legacyLicenseLoading": {
+      "originalKey": "textures/заставка.jpg",
+      "image": "assets/images/asset-ac2383c9e01e.jpg",
+      "url": "assets/images/asset-ac2383c9e01e.jpg",
+      "size": [
+        1280,
+        1024
+      ]
+    }
+  },
+  "comics": {
+    "1": [
+      {
+        "index": 1,
+        "image": "assets/images/1-d0c1848faf26.jpg",
+        "imageKey": "levels/1/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          1280,
+          1024
+        ],
+        "text": "assets/ui/comic-1-1-text.png",
+        "textKey": "levels/1/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings",
+        "characterSelection": true
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-c9dfc6107792.jpg",
+        "imageKey": "levels/1/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          1189,
+          850
+        ],
+        "text": "assets/ui/comic-1-2-text.png",
+        "textKey": "levels/1/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 3,
+        "image": "assets/images/3-939c521fcca9.jpg",
+        "imageKey": "levels/1/0/3вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          606
+        ],
+        "text": "assets/ui/comic-1-3-text.png",
+        "textKey": "levels/1/0/т3.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 4,
+        "image": "assets/images/4-5968589028f1.jpg",
+        "imageKey": "levels/1/0/4вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          602
+        ],
+        "text": "assets/ui/comic-1-4-text.png",
+        "textKey": "levels/1/0/т4.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 5,
+        "image": "assets/images/5-d7b84acf3a0a.jpg",
+        "imageKey": "levels/1/0/5вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          655
+        ],
+        "text": "assets/ui/comic-1-5-text.png",
+        "textKey": "levels/1/0/т5.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 6,
+        "image": "assets/images/6-f35deb306bcf.jpg",
+        "imageKey": "levels/1/0/6вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          606
+        ],
+        "text": "assets/ui/comic-1-6-text.png",
+        "textKey": "levels/1/0/т6.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 7,
+        "image": "assets/images/7-ab992894896f.jpg",
+        "imageKey": "levels/1/0/7вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          877,
+          627
+        ],
+        "text": "assets/ui/comic-1-7-text.png",
+        "textKey": "levels/1/0/т7.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 8,
+        "image": "assets/images/8-cb8fd4d0b6d5.jpg",
+        "imageKey": "levels/1/0/8вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          611
+        ],
+        "text": "assets/ui/comic-1-8-text.png",
+        "textKey": "levels/1/0/т8.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "2": [
+      {
+        "index": 1,
+        "image": "assets/images/1-c85bc7e0ffee.jpg",
+        "imageKey": "levels/2/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          608
+        ],
+        "text": "assets/ui/comic-2-1-text.png",
+        "textKey": "levels/2/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-a462c72d7bb7.jpg",
+        "imageKey": "levels/2/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          584
+        ],
+        "text": "assets/ui/comic-2-2-text.png",
+        "textKey": "levels/2/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "3": [
+      {
+        "index": 1,
+        "image": "assets/images/1-a1e98848fd74.jpg",
+        "imageKey": "levels/3/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          608
+        ],
+        "text": "assets/ui/comic-3-1-text.png",
+        "textKey": "levels/3/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-ceabfa667afd.jpg",
+        "imageKey": "levels/3/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          640
+        ],
+        "text": "assets/ui/comic-3-2-text.png",
+        "textKey": "levels/3/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "4": [
+      {
+        "index": 1,
+        "image": "assets/images/1-7453688364e9.jpg",
+        "imageKey": "levels/4/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          599
+        ],
+        "text": "assets/ui/comic-4-1-text.png",
+        "textKey": "levels/4/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-06afe4a23b66.jpg",
+        "imageKey": "levels/4/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          639
+        ],
+        "text": "assets/ui/comic-4-2-text.png",
+        "textKey": "levels/4/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "5": [
+      {
+        "index": 1,
+        "image": "assets/images/1-87cfd12d51a4.jpg",
+        "imageKey": "levels/5/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          599
+        ],
+        "text": "assets/ui/comic-5-1-text.png",
+        "textKey": "levels/5/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-9e6a34ccb858.jpg",
+        "imageKey": "levels/5/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          604
+        ],
+        "text": "assets/ui/comic-5-2-text.png",
+        "textKey": "levels/5/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "6": [
+      {
+        "index": 1,
+        "image": "assets/images/1-117959b05419.jpg",
+        "imageKey": "levels/6/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          604
+        ],
+        "text": "assets/ui/comic-6-1-text.png",
+        "textKey": "levels/6/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-bf5a8f584bd2.jpg",
+        "imageKey": "levels/6/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          648
+        ],
+        "text": "assets/ui/comic-6-2-text.png",
+        "textKey": "levels/6/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "7": [
+      {
+        "index": 1,
+        "image": "assets/images/1-9b116ca39073.jpg",
+        "imageKey": "levels/7/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          599
+        ],
+        "text": "assets/ui/comic-7-1-text.png",
+        "textKey": "levels/7/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-b935ee396bda.jpg",
+        "imageKey": "levels/7/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          642
+        ],
+        "text": "assets/ui/comic-7-2-text.png",
+        "textKey": "levels/7/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "8": [
+      {
+        "index": 1,
+        "image": "assets/images/1-8d3c521d886c.jpg",
+        "imageKey": "levels/8/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          639
+        ],
+        "text": "assets/ui/comic-8-1-text.png",
+        "textKey": "levels/8/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-c0cde687cb71.jpg",
+        "imageKey": "levels/8/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          602
+        ],
+        "text": "assets/ui/comic-8-2-text.png",
+        "textKey": "levels/8/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      }
+    ],
+    "9": [
+      {
+        "index": 1,
+        "image": "assets/images/1-9bc818fcce20.jpg",
+        "imageKey": "levels/9/0/1вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          602
+        ],
+        "text": "assets/ui/comic-9-1-text.png",
+        "textKey": "levels/9/0/т1.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 2,
+        "image": "assets/images/2-219bc1aee4a7.jpg",
+        "imageKey": "levels/9/0/2вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          850,
+          617
+        ],
+        "text": "assets/ui/comic-9-2-text.png",
+        "textKey": "levels/9/0/т2.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          76,
+          853,
+          1228,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings"
+      },
+      {
+        "index": 3,
+        "image": "assets/images/3-79b688de1d28.jpg",
+        "imageKey": "levels/9/0/3вид.jpg",
+        "referenceSize": [
+          1024,
+          768
+        ],
+        "imageSize": [
+          1280,
+          1024
+        ],
+        "text": "assets/ui/comic-9-3-text.png",
+        "textKey": "levels/9/0/т3.jpg",
+        "textSize": [
+          1280,
+          1024
+        ],
+        "textRect": [
+          74,
+          850,
+          1246,
+          1017
+        ],
+        "textAlphaMode": "opaque-original-panel-transparent-surroundings",
+        "terminal": true
+      }
+    ]
+  },
+  "diagnostics": [
+    "Menu_Save uses 1024x768 coordinates; native image sizes differ. Scale artwork and hotspots together.",
+    "Raw main/levels/settings rectangles miss painted captions vertically. hitRect is measured on artwork; rawRect preserves source values.",
+    "Graphics/audio/controls artwork contains an empty parchment. Slider coordinates are not present in Menu_Save.",
+    "Settings has no back hotspot; credits back and GameOver restart have no corresponding painted captions.",
+    "Level selector contains EVEL1 through EVEL8 only; the ninth level is reached through gameplay.",
+    "GameOver raw rectangle extends to y=800; hitRect is clipped to y=768.",
+    "Shop command ПАТРОНЫ>3> points to the grenade; ПАТРОНЫ>4> points to the BigGun.",
+    "Hand cursor has both white and black exterior regions; its original bitmap is preserved without an inferred color mask.",
+    "legacyLicenseLoading is an original license-check illustration, not a status claim of the web runtime.",
+    "Comic text images are overlays, not standalone story frames. Pair each nвид image with тn and composite full-frame."
+  ]
+}

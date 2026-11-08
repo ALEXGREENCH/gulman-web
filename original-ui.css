@@ -1,0 +1,236 @@
+/* Original Gulman bitmap menus: an intact 1024 × 768 scene, with letterboxing. */
+#menu.original-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  background: #000;
+  overflow: hidden;
+  color: #1f160c;
+  font: 22px Georgia, 'Times New Roman', serif;
+  text-shadow: none;
+  touch-action: manipulation;
+}
+#menu.original-ui[hidden] { display: none; }
+.original-ui .original-ui-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(var(--original-ui-scale, 1));
+  transform-origin: center center;
+  background: #000;
+  overflow: hidden;
+  isolation: isolate;
+}
+.original-ui .original-ui-background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.original-ui button,
+.original-ui input,
+.original-ui select,
+.original-ui textarea {
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.original-ui .original-ui-hotspot {
+  display: block;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  box-shadow: none;
+  outline: 0;
+  transition: background-color 90ms, box-shadow 90ms;
+  touch-action: manipulation;
+}
+.original-ui .original-ui-hotspot:hover {
+  background: #ffe6a315;
+  box-shadow: inset 0 0 14px #ffe89b5c, 0 0 10px #f5df7a38;
+  border: 0;
+}
+.original-ui .original-ui-hotspot:focus-visible {
+  outline: 2px solid #ffe9a1;
+  outline-offset: -2px;
+  box-shadow: inset 0 0 14px #ffe89b5c;
+  background: #ffe6a312;
+}
+.original-ui .original-ui-hotspot:disabled {
+  opacity: 1;
+  background: #0007;
+  box-shadow: none;
+  cursor: default;
+}
+.original-ui .original-ui-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.original-ui .original-ui-unpainted-label {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  color: #e5d6a5;
+  background: #000b;
+  font: 25px Georgia, 'Times New Roman', serif;
+  text-shadow: 0 2px 2px #000;
+  white-space: nowrap;
+}
+.original-ui .original-ui-hotspot[data-painted='false']:hover {
+  background: transparent;
+  box-shadow: none;
+}
+.original-ui .original-ui-hotspot:hover .original-ui-unpainted-label {
+  color: #fff0b6;
+  text-shadow: 0 0 8px #b69c46;
+}
+.original-ui .original-ui-extras {
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 5px 14px;
+  font: 21px/1.45 Georgia, 'Times New Roman', serif;
+  color: #21190d;
+  scrollbar-width: thin;
+  scrollbar-color: #655237 #c7b78c;
+}
+.original-ui .original-ui-extras p {
+  font: inherit;
+  color: inherit;
+  margin: 0 0 18px;
+  letter-spacing: normal;
+}
+.original-ui .original-ui-extras label {
+  display: block;
+  margin: 0 0 19px;
+}
+.original-ui .original-ui-extras label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.original-ui .original-ui-extras select,
+.original-ui .original-ui-extras input[type='number'],
+.original-ui .original-ui-extras input[type='text'] {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 5px 8px;
+  border: 1px solid #665232;
+  border-radius: 0;
+  background: #e4d6ac;
+  color: #21190d;
+  color-scheme: light;
+}
+.original-ui .original-ui-extras input[type='range'] {
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+  accent-color: #766033;
+}
+.original-ui .original-ui-extras input[type='checkbox'] {
+  width: 21px;
+  height: 21px;
+  margin: 0;
+  accent-color: #766033;
+}
+.original-ui .original-ui-extras output { font-variant-numeric: tabular-nums; }
+.original-ui .original-ui-button,
+.original-ui .original-ui-frame-content button,
+.original-ui .original-ui-extras button {
+  padding: 6px 16px;
+  border: 1px solid #8b794e;
+  border-radius: 0;
+  background: #080805;
+  color: #dbcc9a;
+  font: 22px Georgia, 'Times New Roman', serif;
+  letter-spacing: normal;
+  text-transform: none;
+  box-shadow: none;
+  cursor: pointer;
+  transition: none;
+}
+.original-ui .original-ui-extras button {
+  background: #cdbd91;
+  color: #21190d;
+  border-color: #665232;
+}
+.original-ui .original-ui-button:hover,
+.original-ui .original-ui-frame-content button:hover { color: #fff0b6; background: #211d0e; }
+.original-ui .original-ui-extras button:hover { background: #e2d3a9; color: #21190d; }
+.original-ui button:focus-visible,
+.original-ui input:focus-visible,
+.original-ui select:focus-visible {
+  outline: 2px solid #a57422;
+  outline-offset: 3px;
+}
+.original-ui .original-ui-button:disabled,
+.original-ui .original-ui-extras button:disabled { opacity: .45; cursor: default; }
+.original-ui .original-ui-paper-back,
+.original-ui .original-ui-paper-back:hover {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #332110;
+  font-style: italic;
+}
+.original-ui .original-ui-paper-back:hover { text-shadow: 0 0 7px #ffefb5; }
+.original-ui .original-ui-status {
+  position: absolute;
+  left: 6.25%;
+  right: 6.25%;
+  bottom: 1.5%;
+  margin: 0;
+  padding: 3px 9px;
+  color: #e0d4a9;
+  background: #000b;
+  font: 17px/1.25 Georgia, 'Times New Roman', serif;
+  text-align: center;
+}
+.original-ui .original-ui-frame-content {
+  overflow: auto;
+  padding: 12px 20px;
+  box-sizing: border-box;
+  color: #ded4ac;
+  font: 23px/1.5 Georgia, 'Times New Roman', serif;
+  scrollbar-width: thin;
+  scrollbar-color: #8b794e #000;
+}
+.original-ui .original-ui-frame-title,
+.original-ui .original-ui-frame-content h2 {
+  margin: 0 0 20px;
+  font: 32px/1.25 Georgia, 'Times New Roman', serif;
+  letter-spacing: normal;
+  color: #e1cd89;
+  text-align: center;
+}
+.original-ui .original-ui-frame-content p { margin: 0 0 20px; color: inherit; font: inherit; }
+.original-ui .original-ui-frame-content a { color: #dac78c; font: inherit; text-decoration: underline; }
+.original-ui .original-ui-frame-content .dialog-actions { gap: 14px; margin-top: 22px; }
+.original-ui .original-ui-frame-content img { max-width: 100%; object-fit: contain; }
+.original-ui .original-toolbar { overflow: visible; padding: 0; }

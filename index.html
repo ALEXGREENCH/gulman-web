@@ -2,46 +2,55 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#151a16">
+  <meta name="theme-color" content="#000000">
   <meta name="description" content="Гульмэн 3D: В поисках утраченного искусства. Экспериментальная браузерная версия с оригинальными локациями, персонажами и музыкой.">
   <title>Гульмэн 3D — В поисках утраченного искусства</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=20261108-2">
+  <link rel="stylesheet" href="./original-ui.css?v=20261108-2">
+  <link rel="stylesheet" href="./enhanced.css?v=20261108-2">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 </head>
 <body>
   <canvas id="game" aria-label="Игровой мир Гульмэна 3D" tabindex="0"></canvas>
-  <main id="menu" class="screen">
-    <div class="grain"></div>
-    <div class="menu-content">
-      <div class="eyebrow">СВЯТОСЛАВ ГУЛЯЕВ · 2009 / WEB</div>
-      <h1>ГУЛЬМЭН<span>3D</span></h1>
-      <p class="subtitle">В поисках утраченного искусства</p>
-      <div class="rule"></div>
-      <p class="intro">Девять локаций. Пропавшие артефакты.<br>Один невероятный герой.</p>
-      <div class="actions">
-        <button id="new-game" class="primary" disabled>Начать приключение <span>↗</span></button>
-        <button id="continue" hidden>Продолжить</button>
-        <div class="secondary"><button id="levels-open">Выбрать уровень</button><button id="help-open">Управление</button></div>
+  <main id="menu" aria-label="Меню Гульмэна"></main>
+  <section id="resource-error" hidden aria-label="Загрузка ресурсов">
+    <div class="resource-error-content">
+      <h1>Гульмэн 3D</h1><p id="status" role="status">Подготовка игры…</p>
+      <div id="import-panel" hidden>
+        <p>Выбери подготовленный пакет ресурсов игры.</p>
+        <label class="file-button" for="asset-file">Открыть пакет ресурсов ZIP</label>
+        <input id="asset-file" type="file" accept=".zip,application/zip">
       </div>
-      <p id="status" role="status">Подготовка игры…</p>
-      <div id="import-panel" hidden><p>Выбери подготовленный пакет ресурсов игры.</p><label class="file-button">Открыть gulman-assets.zip<input id="asset-file" type="file" accept=".zip"></label></div>
-      <footer><span class="tag">ЭКСПЕРИМЕНТАЛЬНАЯ ВЕРСИЯ</span><p>Оригинальные модели, уровни, иллюстрации и звук.<br>Движение и игровая логика восстановлены для браузера.</p><a href="https://www.gulman.ru/gul1.html" target="_blank" rel="noopener">Сайт автора ↗</a><button id="about-open" class="text-button">О версии</button></footer>
     </div>
-    <div class="menu-art" aria-hidden="true"><img id="cover" alt=""><div class="art-caption">АРХИВ 2009 ГОДА<br><b>ВОЗВРАЩЕНИЕ В БРАУЗЕР</b></div></div>
-  </main>
+  </section>
   <section id="hud" hidden aria-label="Игровой интерфейс">
     <div class="mission"><small id="level-label"></small><strong id="objective">Найди артефакт</strong><span id="objective-distance"></span></div>
-    <div class="top-actions"><button id="briefing-open" title="Брифинг">Брифинг</button><button id="pause-button" title="Пауза (Esc)">Ⅱ</button></div>
-    <div id="crosshair" aria-hidden="true">+</div><div id="hitmarker" aria-hidden="true">×</div>
-    <div id="prompt" role="status"></div><div id="toast" role="status"></div>
-    <div class="health"><small>ГУЛЬМЭН</small><strong><span id="health-value">100</span><span class="unit"> / 100</span></strong><div class="bar"><i id="health-bar"></i></div><span id="credits">$ 0</span></div>
-    <div class="ammo"><small id="weapon-name">ПИСТОЛЕТ</small><strong id="ammo-value">120</strong><div id="weapon-slots">1 · 2 · 3 · 4</div></div>
-    <div class="controls-hint">WASD — движение · E — подобрать · Shift — бег · Space — прыжок · C — камера · M — карта</div>
+    <div class="top-actions">
+      <button id="hero-switch" type="button" title="F1 — Гульмэн, F2 — Гульмоника" aria-label="Сменить персонажа">F1 / F2</button>
+      <button id="briefing-open" type="button" title="Брифинг">Брифинг</button>
+      <button id="pause-button" type="button" title="Пауза (Esc)" aria-label="Пауза">Ⅱ</button>
+    </div>
+    <img id="crosshair" alt="" width="53" height="49" aria-hidden="true"><div id="hitmarker" aria-hidden="true">×</div>
+    <div id="prompt" role="status"></div>
+    <div class="health">
+      <span id="hero-name">Гульмэн</span><img id="health-icon" alt="Здоровье" width="124" height="137"><span id="health-value">100</span><i id="health-bar" hidden></i>
+    </div>
+    <div class="inventory">
+      <div class="counter money"><span id="credits">$ 0</span><img id="money-icon" alt="Деньги" width="79" height="87"></div>
+      <div class="counter ammo"><img id="ammo-icon" alt="Патроны" width="114" height="102"><span id="ammo-value">120</span></div>
+      <div class="weapon"><img id="weapon-icon" alt="Оружие" width="177" height="95"><span id="weapon-name">Пистолет</span><span id="weapon-slots">1 · 2 · 3 · 4</span></div>
+    </div>
+    <div class="controls-hint">WASD — движение · E — действие · Shift — бег · Space — прыжок · C — камера · M — карта</div>
     <canvas id="minimap" width="220" height="220" hidden aria-label="Карта уровня"></canvas>
     <div id="damage" aria-hidden="true"></div>
-    <div id="touch-controls"><div class="dpad"><button data-key="KeyW">▲</button><button data-key="KeyA">◀</button><button data-key="KeyS">▼</button><button data-key="KeyD">▶</button></div><div class="touch-actions"><button id="touch-fire">●</button><button data-key="Space">↑</button><button data-key="KeyE">E</button></div></div>
+    <div id="touch-controls" aria-label="Сенсорное управление">
+      <div class="dpad"><button type="button" data-key="KeyW" aria-label="Вперёд">▲</button><button type="button" data-key="KeyA" aria-label="Влево">◀</button><button type="button" data-key="KeyS" aria-label="Назад">▼</button><button type="button" data-key="KeyD" aria-label="Вправо">▶</button></div>
+      <div class="touch-actions"><button id="touch-fire" type="button" aria-label="Стрелять">●</button><button type="button" data-key="Space" aria-label="Прыжок">↑</button><button type="button" data-key="KeyE" aria-label="Действие">E</button></div>
+    </div>
   </section>
-  <section id="loading" class="overlay" hidden><div class="dialog loading-dialog"><div class="eyebrow">ВОССТАНОВЛЕНИЕ АРХИВА</div><h2 id="loading-title">Загрузка уровня</h2><p id="loading-status" role="status"></p><div class="indeterminate"></div></div></section>
-  <section id="dialog-overlay" class="overlay" hidden><div class="dialog"><button id="dialog-close" class="close" aria-label="Закрыть">×</button><div id="dialog-content"></div></div></section>
-  <script type="module" src="./js/app.js"></script>
-</body></html>
+  <div id="toast" role="status"></div>
+  <section id="loading" hidden aria-label="Загрузка уровня" aria-live="polite"><div class="loading-content"><h2 id="loading-title">Загрузка уровня</h2><p id="loading-status" role="status">Подготовка игры…</p><div class="indeterminate" aria-hidden="true"></div></div></section>
+  <button id="sound-unlock" type="button" hidden>Включить звук</button>
+  <script type="module" src="./js/app.js?v=20261108-2"></script>
+</body>
+</html>

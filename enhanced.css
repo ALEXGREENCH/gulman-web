@@ -1,0 +1,32 @@
+/* Optional display-only treatment; original files and their layout stay intact.
+   The scene canvas is deliberately excluded: no full-screen post-process. */
+html[data-graphics='enhanced'] :is(
+  .original-ui-background,
+  #menu img,
+  .original-comic img,
+  .comic-image,
+  img.comic,
+  #hud img,
+  [data-original-art]
+) {
+  image-rendering: auto;
+  filter: url('#gulman-art-sharpen') contrast(1.025) saturate(1.045);
+}
+
+/* Text remains sharp and keeps the author's original colour. */
+html[data-graphics='enhanced'] :is(.comic-text, [data-original-text]) {
+  filter: none;
+}
+
+/* No shader, image-filter, or continuously animated treatment in economy mode. */
+html[data-graphics='potato'] :is(
+  .original-ui-background,
+  #menu img,
+  .original-comic img,
+  .comic-image,
+  img.comic,
+  #hud img,
+  [data-original-art]
+) {
+  filter: none;
+}
