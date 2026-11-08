@@ -302,23 +302,44 @@ export class EnhancedMaterialLibrary {
     if (this._promise) return this._promise;
     this._promise = (async () => {
       const manifest = await this.assets.json('assets/enhanced/materials/manifest.json');
-      const loads = await Promise.allSettled(Object.entries(manifest.materials).map(async ([kind, record]) => {
+      if (this.disposed) throw new Error('Enhanced material library was disposed while loading');
+      const jobs = [];
+      for (const [kind, record] of Object.entries(manifest.materials)) {
         const set = { tileMeters: record.tileMeters, asset: record.asset };
         this.sets.set(kind, set);
-        const maps = await Promise.allSettled(Object.entries(record.maps).map(async ([channel, entry]) => {
-          const texture = await this.loader.loadAsync(this.assets.url(entry.path));
-          if (this.disposed) { texture.dispose(); return; }
+        for (const [channel, entry] of Object.entries(record.maps)) jobs.push({ set, channel, entry });
+      }
+      // Cold Pages loads also fetch model images. Avoid starting all 36 PBR
+      // images at once, and retry one transient ImageLoader failure per map.
+      let cursor = 0, failure = null;
+      const worker = async () => {
+        while (!this.disposed && !failure && cursor < jobs.length) {
+          const { set, channel, entry } = jobs[cursor++];
+          let texture;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            if (this.disposed || failure) return;
+            try { texture = await this.loader.loadAsync(this.assets.url(entry.path)); break; }
+            catch (cause) {
+              if (this.disposed) return;
+              if (attempt === 0) { await new Promise(resolve => setTimeout(resolve, 120)); continue; }
+              failure ??= new Error(`Enhanced texture ${entry.path}: ${cause?.message || cause?.type || String(cause)}`, { cause });
+              return;
+            }
+          }
+          if (this.disposed) { texture?.dispose(); return; }
           texture.colorSpace = channel === 'color' ? THREE.SRGBColorSpace : THREE.NoColorSpace;
           texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
           texture.anisotropy = this.anisotropy;
           texture.userData.graphicsOwned = true;
           set[channel] = texture;
-        }));
-        const failure = maps.find(result => result.status === 'rejected');
-        if (failure) throw failure.reason;
-      }));
-      const failure = loads.find(result => result.status === 'rejected');
-      if (failure) throw failure.reason;
+        }
+      };
+      // Wait for every active request before cleaning up; a late completion
+      // must never allocate an orphaned texture after the failure handler.
+      const loads = await Promise.allSettled(Array.from({ length: Math.min(4, jobs.length) }, worker));
+      const rejected = loads.find(result => result.status === 'rejected');
+      if (rejected) throw rejected.reason;
+      if (failure) throw failure;
       if (this.disposed) throw new Error('Enhanced material library was disposed while loading');
       this.loaded = true;
       return this;

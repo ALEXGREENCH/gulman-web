@@ -86,13 +86,20 @@ test('library is lazy, creates independent materials, and frees only its owned m
 test('partial download failure frees completed maps and allows a clean retry', async () => {
   const f = fixture();
   const originalLoad = f.textureLoader.loadAsync;
-  let fail = true;
+  const cause = new Error('offline');
+  let fail = true, attempts = 0;
   f.textureLoader.loadAsync = async path => {
-    if (fail && path.endsWith('sand-normal.webp')) throw new Error('offline');
+    if (fail && path.endsWith('sand-normal.webp')) { attempts++; throw cause; }
     return originalLoad(path);
   };
   const library = new EnhancedMaterialLibrary(f.assets, { textureLoader: f.textureLoader });
-  await assert.rejects(library.load(), /offline/);
+  await assert.rejects(library.load(), error => {
+    assert.match(error.message, /assets\/enhanced\/materials\/sand-normal\.webp/);
+    assert.match(error.message, /offline/);
+    assert.equal(error.cause, cause);
+    return true;
+  });
+  assert.equal(attempts, 2, 'a permanent failure is retried once, then reported with its path and original cause');
   assert.equal(library.loaded, false);
   assert.equal(library.sets.size, 0);
   for (const texture of f.textures) assert.equal(texture.disposals, 1);
@@ -101,4 +108,50 @@ test('partial download failure frees completed maps and allows a clean retry', a
   assert.equal(library.loaded, true);
   library.dispose();
   for (const texture of f.textures) assert.equal(texture.disposals, 1);
+});
+
+test('cold material loads use at most four concurrent requests and recover from one transient image failure', async () => {
+  const f = fixture(), originalLoad = f.textureLoader.loadAsync, attempts = new Map();
+  let active = 0, maximum = 0;
+  const retryPath = 'assets/enhanced/materials/grass-normal.webp';
+  f.textureLoader.loadAsync = async path => {
+    active++; maximum = Math.max(maximum, active);
+    attempts.set(path, (attempts.get(path) || 0) + 1);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1));
+      if (path === retryPath && attempts.get(path) === 1) throw new Event('error');
+      return await originalLoad(path);
+    } finally { active--; }
+  };
+  const library = new EnhancedMaterialLibrary(f.assets, { textureLoader: f.textureLoader });
+  await Promise.all([library.load(), library.load()]);
+  assert.equal(library.loaded, true);
+  assert.equal(maximum, 4);
+  assert.equal(active, 0);
+  assert.equal(attempts.size, 36);
+  for (const [path, count] of attempts) assert.equal(count, path === retryPath ? 2 : 1);
+  assert.equal(f.textures.length, 36);
+  library.dispose();
+  for (const texture of f.textures) assert.equal(texture.disposals, 1);
+});
+
+test('disposal stops queued material requests and frees images that complete afterwards', async () => {
+  const f = fixture(), originalLoad = f.textureLoader.loadAsync, requests = [];
+  f.textureLoader.loadAsync = path => new Promise(resolve => requests.push({path, resolve}));
+  const library = new EnhancedMaterialLibrary(f.assets, { textureLoader: f.textureLoader });
+  const loading = library.load(), rejected = assert.rejects(loading, /disposed/);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(requests.length, 4);
+  library.dispose();
+  for (const request of requests) request.resolve(await originalLoad(request.path));
+  await rejected;
+  assert.equal(requests.length, 4, 'the remaining 32 maps never start after disposal');
+  assert.equal(library.sets.size, 0);
+  for (const texture of f.textures) assert.equal(texture.disposals, 1);
+
+  let resolveManifest, imageRequests = 0;
+  const beforeManifest = new EnhancedMaterialLibrary({json: () => new Promise(resolve => { resolveManifest = resolve; }), url: path => path}, {textureLoader: {loadAsync() { imageRequests++; }}});
+  const manifestLoading = beforeManifest.load(), manifestRejected = assert.rejects(manifestLoading, /disposed/);
+  beforeManifest.dispose(); resolveManifest(manifest); await manifestRejected;
+  assert.equal(imageRequests, 0);
 });

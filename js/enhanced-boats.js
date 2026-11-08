@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries } from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-9';
-import { meshPlacement } from './enhanced-props.js?v=20261109-9';
+import { mergeGeometries } from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-10';
+import { meshPlacement } from './enhanced-props.js?v=20261109-10';
 
 const Y = new THREE.Vector3(0, 1, 0);
 

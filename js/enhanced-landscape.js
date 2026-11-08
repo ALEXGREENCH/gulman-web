@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {clipTriangleToAtlasRegions} from './enhanced-architecture.js?v=20261109-9';
+import {clipTriangleToAtlasRegions} from './enhanced-architecture.js?v=20261109-10';
 
 const SCALE=.01;
 // Hash-qualified source maps are deliberate. The word ROCK also occurs on

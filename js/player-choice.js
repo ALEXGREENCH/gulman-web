@@ -6,7 +6,7 @@ const WEAPONS = [
   { path: 'models/weapons/granate.3ds', length: 0.2 },
   { path: 'models/weapons/weaponrifle2.3ds', length: 0.7 },
 ];
-const defaultCharacterFactory = async (...args) => (await import('./characters.js?v=20261109-9')).createCharacter(...args);
+const defaultCharacterFactory = async (...args) => (await import('./characters.js?v=20261109-10')).createCharacter(...args);
 
 // Physical number keys work in both Russian and English layouts. Function
 // keys remain available to the browser; editing and browser shortcuts win.

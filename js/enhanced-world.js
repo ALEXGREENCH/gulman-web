@@ -1,15 +1,15 @@
 import * as THREE from 'three';
-import {EnhancedMaterialLibrary} from './enhanced-materials.js?v=20261109-9';
-import {EnhancedWater} from './enhanced-water.js?v=20261109-9';
-import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261109-9';
-import {EnhancedImportedProps} from './enhanced-imported-props.js?v=20261109-9';
-import {EnhancedVegetation} from './enhanced-vegetation.js?v=20261109-9';
-import {buildEnhancedLandscape,isEnhancedLandscapeMaterial} from './enhanced-landscape.js?v=20261109-9';
-import {remainingEnhancedSource,selectEnhancedSourceMaterials} from './enhanced-source.js?v=20261109-9';
-import {buildEnhancedDecks} from './enhanced-decks.js?v=20261109-9';
-import {buildEnhancedBoats} from './enhanced-boats.js?v=20261109-9';
-import {buildEnhancedArchitecture} from './enhanced-architecture.js?v=20261109-9';
-import {mergeWorldMeshes} from './merge-world.js?v=20261109-9';
+import {EnhancedMaterialLibrary} from './enhanced-materials.js?v=20261109-10';
+import {EnhancedWater} from './enhanced-water.js?v=20261109-10';
+import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261109-10';
+import {EnhancedImportedProps} from './enhanced-imported-props.js?v=20261109-10';
+import {EnhancedVegetation} from './enhanced-vegetation.js?v=20261109-10';
+import {buildEnhancedLandscape,isEnhancedLandscapeMaterial} from './enhanced-landscape.js?v=20261109-10';
+import {remainingEnhancedSource,selectEnhancedSourceMaterials} from './enhanced-source.js?v=20261109-10';
+import {buildEnhancedDecks} from './enhanced-decks.js?v=20261109-10';
+import {buildEnhancedBoats} from './enhanced-boats.js?v=20261109-10';
+import {buildEnhancedArchitecture} from './enhanced-architecture.js?v=20261109-10';
+import {mergeWorldMeshes} from './merge-world.js?v=20261109-10';
 
 const assetRoot='assets/enhanced/models/';
 const TAU=Math.PI*2;
@@ -123,7 +123,7 @@ export class EnhancedWorld {
   }
   _hideOriginal(name){const o=this.world.children.find(o=>o.name==='world:'+name);if(o&&!this.originalVisibility.has(o))this.originalVisibility.set(o,o.visible);}
   async _model(name,alpha=false){
-    const {GLTFLoader}=await import('../vendor/addons/loaders/GLTFLoader.js?v=20261109-9');
+    const {GLTFLoader}=await import('../vendor/addons/loaders/GLTFLoader.js?v=20261109-10');
     const folder=assetRoot+name+'/',raw=await this.assets.json(folder+name+'.gltf'),data=structuredClone(raw);
     for(const item of [...data.buffers||[],...data.images||[]])if(item.uri)item.uri=this.assets.url(folder+item.uri);
     const gltf=await new GLTFLoader().parseAsync(data,'');

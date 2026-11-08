@@ -1,13 +1,37 @@
 import * as THREE from 'three';
-import {unzipSync} from '../vendor/fflate.js?v=20261109-9';
-import {mergeWorldMeshes} from './merge-world.js?v=20261109-9';
+import {unzipSync} from '../vendor/fflate.js?v=20261109-10';
+import {mergeWorldMeshes} from './merge-world.js?v=20261109-10';
 
+// Static hosting can briefly return 503 while a deployment reaches an edge.
+// Bound cold-start requests and never retain rejected promises in the cache.
+class AssetQueue {
+  constructor(limit=6){this.limit=limit;this.active=0;this.waiting=[];}
+  async run(load){
+    if(this.active>=this.limit)await new Promise(resolve=>this.waiting.push(resolve));else this.active++;
+    try{return await load();}finally{const next=this.waiting.shift();if(next)next();else this.active--;}
+  }
+}
+export async function retryAsset(load,{wait=ms=>new Promise(resolve=>setTimeout(resolve,ms)),shouldRetry=()=>true}={}){
+  for(let attempt=0;;attempt++){
+    try{return await load();}catch(error){if(attempt>=2||!shouldRetry(error))throw error;await wait(250*2**attempt);}
+  }
+}
+function cached(cache,key,load){
+  if(!cache.has(key)){
+    const pending=Promise.resolve().then(load).catch(error=>{if(cache.get(key)===pending)cache.delete(key);throw error;});
+    cache.set(key,pending);
+  }
+  return cache.get(key);
+}
 export class Assets {
-  constructor() { this.manifest=null; this.blobs=new Map(); this.models=new Map(); this.jsons=new Map(); this.textures=new Map(); }
+  constructor({fetcher=(...args)=>fetch(...args),textureLoader=new THREE.TextureLoader(),wait}={}) { this.manifest=null; this.blobs=new Map(); this.models=new Map(); this.jsons=new Map(); this.textures=new Map();this.fetcher=fetcher;this.textureLoader=textureLoader;this.wait=wait;this.queue=new AssetQueue(); }
   url(path) { return this.blobs.get(path) || new URL('../'+path,import.meta.url).href; }
   async json(path) {
-    if(!this.jsons.has(path)) this.jsons.set(path,(async()=>{const r=await fetch(this.url(path),{cache:'no-cache'});if(!r.ok)throw new Error(`${path}: HTTP ${r.status}`);return r.json();})());
-    return this.jsons.get(path);
+    return cached(this.jsons,path,()=>this.queue.run(()=>retryAsset(async()=>{
+      const r=await this.fetcher(this.url(path),{cache:'no-cache'});
+      if(!r.ok){const error=new Error(`${path}: HTTP ${r.status}`);error.retryable=[408,425,429,500,502,503,504].includes(r.status);throw error;}
+      return r.json();
+    },{wait:this.wait,shouldRetry:error=>error.retryable===true||error instanceof TypeError})));
   }
   async init() { this.manifest=await this.json('assets/manifest.json'); return this.manifest; }
   async importZip(file) {
@@ -23,16 +47,16 @@ export class Assets {
   sound(original) {const p=this.manifest.sounds[original.toLowerCase()];return p?this.url(p):null;}
   async texture(mat) {
     const key=JSON.stringify([mat.map,mat.uvScale,mat.uvOffset,mat.uvRotation]);
-    if(!this.textures.has(key)) this.textures.set(key,(async()=>{
-      const tex=await new THREE.TextureLoader().loadAsync(this.url(mat.map));tex.colorSpace=THREE.SRGBColorSpace;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+    return cached(this.textures,key,()=>this.queue.run(async()=>{
+      let tex;try{tex=await retryAsset(()=>this.textureLoader.loadAsync(this.url(mat.map)),{wait:this.wait});}
+      catch(cause){throw new Error(`Текстура ${mat.map}: ${cause?.message||'не удалось загрузить изображение'}`,{cause});}
+      tex.colorSpace=THREE.SRGBColorSpace;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
       tex.repeat.fromArray(mat.uvScale||[1,1]);tex.offset.fromArray(mat.uvOffset||[0,0]);tex.rotation=mat.uvRotation||0;tex.anisotropy=4;return tex;
-    })());
-    return this.textures.get(key);
+    }));
   }
   async model(original,raw=false) {
     const key=original.toLowerCase().replaceAll('\\','/');const cacheKey=key+':'+raw;
-    if(!this.models.has(cacheKey)) this.models.set(cacheKey,this.buildModel(key,raw));
-    return (await this.models.get(cacheKey)).clone(true);
+    return (await cached(this.models,cacheKey,()=>this.buildModel(key,raw))).clone(true);
   }
   async buildModel(key,raw) {
     const url=this.manifest.models[key];if(!url)throw new Error('Модель отсутствует: '+key);

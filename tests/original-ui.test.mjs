@@ -91,7 +91,7 @@ test('HUD HTML retains unique gameplay hooks and original UI stylesheets', async
   assert.equal(new Set(ids).size,ids.length);
   for(const id of ['menu','resource-error','status','import-panel','asset-file','health-value','health-bar','ammo-value','credits','weapon-name','weapon-slots','objective','level-label','objective-distance','prompt','toast','hitmarker','damage','minimap','briefing-open','pause-button','touch-fire','health-icon','money-icon','ammo-icon','weapon-icon','crosshair','hero-name','hero-switch','loading','loading-title','loading-status','sound-unlock']) assert.ok(ids.includes(id),id);
   for(const id of ['crosshair','health-icon','money-icon','ammo-icon','weapon-icon']) assert.match(html,new RegExp(`<img\\s+id="${id}"`));
-  assert.match(html,/<main id="menu"[^>]*><\/main>/);
+  assert.match(html,/<main id="menu"[^>]*>.*?<p role="status"[^>]*>Загрузка Гульмэна…<\/p><\/main>/);
   assert.match(html,/href="\.\/original-ui\.css(?:\?[^\"]*)?"/);
   assert.match(html,/href="\.\/enhanced\.css(?:\?[^\"]*)?"/);
   assert.ok(!ids.includes('dialog-overlay'));

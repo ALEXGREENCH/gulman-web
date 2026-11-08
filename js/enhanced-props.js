@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-9';
+import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-10';
 
 /** Source meshes remain untouched: these are visual replacements in metres. */
 export function meshPlacement(mesh, scale=.01) {

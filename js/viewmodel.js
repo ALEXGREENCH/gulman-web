@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js?v=20261109-9';
-import { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-9';
-import { createEnhancedWeapon, ENHANCED_WEAPON_SPECS } from './enhanced-weapons.js?v=20261109-9';
+import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js?v=20261109-10';
+import { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-10';
+import { createEnhancedWeapon, ENHANCED_WEAPON_SPECS } from './enhanced-weapons.js?v=20261109-10';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0;

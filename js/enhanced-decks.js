@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {mergeWorldMeshes} from './merge-world.js?v=20261109-9';
+import {mergeWorldMeshes} from './merge-world.js?v=20261109-10';
 
 /** BOAT.JPG also covers entire piers. Replace their broad horizontal timber
  * decks, preserving every railing/support triangle and the source collider. */

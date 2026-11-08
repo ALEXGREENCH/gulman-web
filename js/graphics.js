@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EnhancedPostprocessing } from './postprocessing.js?v=20261109-9';
+import { EnhancedPostprocessing } from './postprocessing.js?v=20261109-10';
 
 const STORAGE_KEY = 'gulman-web-graphics-v1';
 const SHARPEN_ID = 'gulman-art-sharpen';
@@ -164,7 +164,7 @@ export function reduceEnvironmentTexture(source, maximumWidth = 1024) {
 }
 
 async function defaultEnvironmentLoader(url) {
-  const { HDRLoader } = await import('../vendor/addons/loaders/HDRLoader.js?v=20261109-9');
+  const { HDRLoader } = await import('../vendor/addons/loaders/HDRLoader.js?v=20261109-10');
   return new HDRLoader().loadAsync(url);
 }
 

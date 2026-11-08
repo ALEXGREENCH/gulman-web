@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-9';
-import {classifyProp,meshPlacement} from './enhanced-props.js?v=20261109-9';
+import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-10';
+import {classifyProp,meshPlacement} from './enhanced-props.js?v=20261109-10';
 
 const MANIFEST='assets/enhanced/props/manifest.json';
 const KINDS=new Set(['crate','barrel','table','chair']);
@@ -76,7 +76,7 @@ export class EnhancedImportedProps {
     return this;
   }
   async _model(spec){
-    const {GLTFLoader}=await import('../vendor/addons/loaders/GLTFLoader.js?v=20261109-9');
+    const {GLTFLoader}=await import('../vendor/addons/loaders/GLTFLoader.js?v=20261109-10');
     const raw=structuredClone(await this.assets.json(spec.path)),folder=spec.path.slice(0,spec.path.lastIndexOf('/')+1);
     for(const item of [...raw.buffers||[],...raw.images||[]])if(item.uri)item.uri=this.assets.url(folder+item.uri);
     return new GLTFLoader().parseAsync(raw,'');

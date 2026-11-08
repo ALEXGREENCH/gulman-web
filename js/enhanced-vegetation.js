@@ -88,7 +88,7 @@ export class EnhancedVegetation {
   }
   async _parse(kind) {
     if (this.loadModel) return this.loadModel(kind);
-    const { GLTFLoader } = await import('../vendor/addons/loaders/GLTFLoader.js?v=20261109-9');
+    const { GLTFLoader } = await import('../vendor/addons/loaders/GLTFLoader.js?v=20261109-10');
     const folder = ROOT + kind + '/', data = structuredClone(await this.assets.json(folder + 'model.gltf'));
     for (const item of [...data.buffers || [], ...data.images || []]) if (item.uri) item.uri = this.assets.url(folder + item.uri);
     return (await new GLTFLoader().parseAsync(data, '')).scene;

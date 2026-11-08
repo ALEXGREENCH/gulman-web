@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-9';
-export { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-9';
-import { mergeGeometries } from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-9';
-import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js?v=20261109-9';
-import { humanHead } from '../assets/enhanced/characters/human-head.js?v=20261109-9';
-import { createEnhancedCharacterMaterials } from './enhanced-character-materials.js?v=20261109-9';
+import { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-10';
+export { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-10';
+import { mergeGeometries } from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-10';
+import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js?v=20261109-10';
+import { humanHead } from '../assets/enhanced/characters/human-head.js?v=20261109-10';
+import { createEnhancedCharacterMaterials } from './enhanced-character-materials.js?v=20261109-10';
 
 const prototypes = new Map(), owners = new WeakMap();
 let defaultMaterials = null, defaultUsers = 0;
