@@ -1,0 +1,3 @@
+# Downloaded glTF files have recorded source-byte checksums. Preserve their bytes
+# even in Windows checkouts with core.autocrlf enabled.
+assets/enhanced/models/**/*.gltf -text
