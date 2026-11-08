@@ -1,0 +1,339 @@
+{
+  "passed": true,
+  "errors": [],
+  "counts": {
+    "models": 135,
+    "meshes": 3274,
+    "triangles": 332473,
+    "images": 311,
+    "sounds": 25,
+    "levels": 9,
+    "entities": 1184
+  },
+  "warnings": [
+    {
+      "model": "models/weapons/weaponrifle2.3ds",
+      "texture": "GRANATE-.JPG"
+    }
+  ],
+  "levels": [
+    {
+      "id": 1,
+      "meshes": 228,
+      "triangles": 14253,
+      "entities": 84,
+      "commands": {
+        "GameStart": 1,
+        "МАГАЗИН": 1,
+        "GameEnd": 1,
+        "GameKey": 1,
+        "БОТ": 29,
+        "АПТЕЧКА": 13,
+        "ПАТРОНЫ": 26,
+        "БАКСЫ": 12
+      },
+      "spawns": [
+        {
+          "entityId": 2,
+          "position": [
+            2280.0,
+            -252.0,
+            -5156.0
+          ],
+          "groundY": [
+            -578.992,
+            -410.961,
+            -349.011
+          ],
+          "floorBelow": -349.011,
+          "centerAboveFloor": 97.011,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "meshes": 289,
+      "triangles": 21920,
+      "entities": 97,
+      "commands": {
+        "GameStart": 1,
+        "МАГАЗИН": 1,
+        "GameEnd": 1,
+        "GameKey": 1,
+        "БОТ": 28,
+        "АПТЕЧКА": 15,
+        "ПАТРОНЫ": 30,
+        "БАКСЫ": 19,
+        "#Uron": 1
+      },
+      "spawns": [
+        {
+          "entityId": 3,
+          "position": [
+            3638.0,
+            -228.0,
+            -4965.0
+          ],
+          "groundY": [
+            -325.376
+          ],
+          "floorBelow": -325.376,
+          "centerAboveFloor": 97.376,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "meshes": 418,
+      "triangles": 23008,
+      "entities": 109,
+      "commands": {
+        "GameStart": 1,
+        "МАГАЗИН": 1,
+        "GameEnd": 1,
+        "GameKey": 1,
+        "БОТ": 43,
+        "АПТЕЧКА": 20,
+        "ПАТРОНЫ": 31,
+        "БАКСЫ": 11
+      },
+      "spawns": [
+        {
+          "entityId": 1,
+          "position": [
+            13286.0,
+            -1890.0,
+            1574.0
+          ],
+          "groundY": [
+            -1990.47
+          ],
+          "floorBelow": -1990.47,
+          "centerAboveFloor": 100.47,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "meshes": 416,
+      "triangles": 23921,
+      "entities": 165,
+      "commands": {
+        "GameStart": 1,
+        "МАГАЗИН": 2,
+        "GameKey": 1,
+        "GameEnd": 1,
+        "БОТ": 57,
+        "АПТЕЧКА": 23,
+        "ПАТРОНЫ": 4,
+        "БАКСЫ": 74,
+        "#Uron": 2
+      },
+      "spawns": [
+        {
+          "entityId": 2,
+          "position": [
+            12465.0,
+            -3299.0,
+            336.0
+          ],
+          "groundY": [
+            -3399.646
+          ],
+          "floorBelow": -3399.646,
+          "centerAboveFloor": 100.646,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "meshes": 347,
+      "triangles": 52135,
+      "entities": 154,
+      "commands": {
+        "": 1,
+        "GameStart": 1,
+        "GameKey": 1,
+        "GameEnd": 1,
+        "МАГАЗИН": 5,
+        "БОТ": 61,
+        "АПТЕЧКА": 24,
+        "ПАТРОНЫ": 28,
+        "БАКСЫ": 29,
+        "#Uron": 3
+      },
+      "spawns": [
+        {
+          "entityId": 1,
+          "position": [
+            18319.0,
+            -3686.0,
+            6055.0
+          ],
+          "groundY": [
+            -3784.155
+          ],
+          "floorBelow": -3784.155,
+          "centerAboveFloor": 98.155,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "meshes": 558,
+      "triangles": 62789,
+      "entities": 177,
+      "commands": {
+        "": 1,
+        "GameStart": 2,
+        "МАГАЗИН": 1,
+        "GameEnd": 1,
+        "GameKey": 1,
+        "БОТ": 38,
+        "ПАТРОНЫ": 21,
+        "БАКСЫ": 66,
+        "АПТЕЧКА": 43,
+        "#Uron": 3
+      },
+      "spawns": [
+        {
+          "entityId": 1,
+          "position": [
+            -153.0,
+            -1208.0,
+            18503.0
+          ],
+          "groundY": [
+            -4750.879,
+            -2118.457,
+            -1514.531
+          ],
+          "floorBelow": -1514.531,
+          "centerAboveFloor": 306.531,
+          "selected": false
+        },
+        {
+          "entityId": 5,
+          "position": [
+            -900.0,
+            -1412.0,
+            16676.0
+          ],
+          "groundY": [
+            -4750.879,
+            -1510.527
+          ],
+          "floorBelow": -1510.527,
+          "centerAboveFloor": 98.527,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "meshes": 445,
+      "triangles": 30937,
+      "entities": 166,
+      "commands": {
+        "GameStart": 1,
+        "МАГАЗИН": 1,
+        "GameEnd": 1,
+        "GameKey": 1,
+        "ПАТРОНЫ": 24,
+        "АПТЕЧКА": 32,
+        "БОТ": 68,
+        "БАКСЫ": 38
+      },
+      "spawns": [
+        {
+          "entityId": 2,
+          "position": [
+            -5598.0,
+            -3124.0,
+            25706.0
+          ],
+          "groundY": [
+            -3308.285
+          ],
+          "floorBelow": -3308.285,
+          "centerAboveFloor": 184.285,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "meshes": 286,
+      "triangles": 60787,
+      "entities": 135,
+      "commands": {
+        "GameStart": 1,
+        "МАГАЗИН": 1,
+        "GameEnd": 1,
+        "GameKey": 2,
+        "БОТ": 57,
+        "АПТЕЧКА": 24,
+        "ПАТРОНЫ": 43,
+        "БАКСЫ": 6
+      },
+      "spawns": [
+        {
+          "entityId": 1,
+          "position": [
+            3346.0,
+            -3793.0,
+            -23120.0
+          ],
+          "groundY": [
+            -3923.767,
+            -3892.026
+          ],
+          "floorBelow": -3892.026,
+          "centerAboveFloor": 99.026,
+          "selected": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "meshes": 157,
+      "triangles": 16469,
+      "entities": 97,
+      "commands": {
+        "GameStart": 1,
+        "#Uron": 1,
+        "GameEnd": 1,
+        "МАГАЗИН": 1,
+        "GameKey": 4,
+        "БОТ": 26,
+        "АПТЕЧКА": 11,
+        "ПАТРОНЫ": 7,
+        "БАКСЫ": 45
+      },
+      "spawns": [
+        {
+          "entityId": 0,
+          "position": [
+            11867.0,
+            600.0,
+            -2743.0
+          ],
+          "groundY": [
+            -3747.162,
+            -612.129,
+            -606.219,
+            499.999
+          ],
+          "floorBelow": 499.999,
+          "centerAboveFloor": 100.001,
+          "selected": true
+        }
+      ]
+    }
+  ]
+}

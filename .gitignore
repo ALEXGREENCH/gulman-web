@@ -1,0 +1,5 @@
+*.zip
+node_modules/
+__pycache__/
+work/
+screenshots/

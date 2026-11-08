@@ -1,0 +1,7 @@
+{
+  "name": "gulman-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --experimental-loader ./tests/vendor-loader.mjs --test tests/*.test.mjs", "serve": "python -m http.server 8097 --bind 127.0.0.1"}
+}
