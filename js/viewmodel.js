@@ -1,11 +1,6 @@
 import * as THREE from 'three';
+import { createEnhancedWeapon, ENHANCED_WEAPON_SPECS } from './enhanced-weapons.js';
 
-const WEAPONS = [
-  { path: 'models/weapons/weaponpistol.3ds', length: 0.39 },
-  { path: 'models/weapons/weaponrifle.3ds', length: 0.65 },
-  { path: 'models/weapons/granate.3ds', length: 0.19 },
-  { path: 'models/weapons/weaponrifle2.3ds', length: 0.67 },
-];
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const smooth = (value, target, rate, dt) => value + (target - value) * (1 - Math.exp(-rate * dt));
@@ -29,13 +24,30 @@ function flashTexture() {
   return texture;
 }
 
-/** Original weapon meshes with our own small glove/forearm meshes. Camera space
- * uses -Z forward. Add group to the camera, and the camera to the scene.
- * Shared asset geometry/textures are retained; overlay materials are private. */
+function gloveTexture() {
+  const size = 64, pixels = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const offset = (y * size + x) * 4;
+    const threadX = Math.sin(x * Math.PI / 2), threadY = Math.sin(y * Math.PI / 2);
+    const crossing = ((x >> 2) + (y >> 2)) % 2 ? 1 : 0.4;
+    pixels.set([128 + Math.round(threadX * 13 * crossing), 128 + Math.round(threadY * 13 * (1.4 - crossing)), 253, 255], offset);
+  }
+  const texture = new THREE.DataTexture(pixels, size, size);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 8); texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter; texture.magFilter = THREE.LinearFilter;
+  texture.userData.graphicsOwned = true; texture.needsUpdate = true;
+  return texture;
+}
+
+/** Enhanced-only authored weapons, textured gloves and secondary motion.
+ * Camera space uses -Z forward. Add group to the camera and camera to scene.
+ * Original-mode models and asset caches are never read or modified here. */
 export class ProceduralViewmodel {
-  constructor({ assets, onError = () => {} }) {
+  constructor({ assets, onError = () => {}, weaponFactory = createEnhancedWeapon } = {}) {
     this.assets = assets;
     this.onError = onError;
+    this._weaponFactory = weaponFactory;
     this.group = new THREE.Group();
     this.group.name = 'first-person-weapons';
     this.group.userData.graphicsOwned = true;
@@ -47,7 +59,7 @@ export class ProceduralViewmodel {
     this._disposed = false;
     this._visible = true;
     this._model = null;
-    this._modelMaterials = new Set();
+    this._weaponRecord = null;
     this._ownedGeometry = new Set();
     this._ownedMaterials = new Set();
     this._muzzle = new THREE.Vector3(0, 0, -0.3);
@@ -61,6 +73,11 @@ export class ProceduralViewmodel {
     this._phase = 0;
     this._swayX = this._swayY = this._landing = 0;
     this._lastGrounded = true;
+    this._clock = 0;
+    this._equip = 0;
+    this._support = new THREE.Vector3(-0.045, -0.05, -0.015);
+    this._clearanceCorner = new THREE.Vector3();
+    this._gloveTexture = gloveTexture();
     this._makeHands();
     this._flashTexture = flashTexture();
     this._flashTexture.userData.graphicsOwned = true;
@@ -80,6 +97,7 @@ export class ProceduralViewmodel {
 
   _material(color, roughness = 0.82) {
     const material = new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.04, emissive: 0x070909,
+      normalMap: this._gloveTexture, normalScale: new THREE.Vector2(0.22, 0.22),
       transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false });
     this._ownedMaterials.add(material);
     return material;
@@ -128,89 +146,68 @@ export class ProceduralViewmodel {
     this.rightHand.rotation.set(-0.15, 0, -0.1);
     this.leftHand.position.set(-0.045, -0.05, -0.015);
     this.leftHand.rotation.set(-0.15, -0.3, 0.3);
+    // The hands are rigid during the grip, so consolidate all finger/sleeve
+    // detail into three material batches per hand instead of dozens of draws.
+    for (const root of [this.rightHand, this.leftHand]) {
+      const batches = new Map();
+      for (const object of [...root.children]) {
+        object.updateMatrix();
+        const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone();
+        geometry.applyMatrix4(object.matrix);
+        const list = batches.get(object.material) ?? [];
+        list.push(geometry); batches.set(object.material, list); object.removeFromParent();
+      }
+      for (const [material, sources] of batches) {
+        const geometry = new THREE.BufferGeometry();
+        for (const [name, width] of [['position', 3], ['normal', 3], ['uv', 2]]) {
+          const length = sources.reduce((sum, source) => sum + source.attributes[name].array.length, 0), data = new Float32Array(length);
+          let offset = 0;
+          for (const source of sources) { data.set(source.attributes[name].array, offset); offset += source.attributes[name].array.length; }
+          geometry.setAttribute(name, new THREE.BufferAttribute(data, width));
+        }
+        for (const source of sources) source.dispose();
+        this._ownedGeometry.add(geometry);
+        const object = new THREE.Mesh(geometry, material);
+        object.userData.graphicsOwned = true; object.renderOrder = 10010; object.frustumCulled = false;
+        root.add(object);
+      }
+    }
+    for (const geometry of [sphere, cylinder, box]) { geometry.dispose(); this._ownedGeometry.delete(geometry); }
   }
 
   _releaseModel() {
-    this._model?.removeFromParent();
+    this._weaponRecord?.dispose();
+    this._weaponRecord = null;
     this._model = null;
-    for (const material of this._modelMaterials) material.dispose();
-    this._modelMaterials.clear();
   }
 
   async setWeapon(index) {
-    const selected = Number.isInteger(index) && WEAPONS[index] ? index : 0;
+    if (this._disposed) return false;
+    const selected = Number.isInteger(index) && ENHANCED_WEAPON_SPECS[index] ? index : 0;
     const token = ++this._generation;
+    if (!this._disposed && this._weaponRecord && this.weapon === selected) return true;
+    let candidate;
     try {
-      const spec = WEAPONS[selected];
-      const model = await this.assets.model(spec.path, true);
-      if (this._disposed || token !== this._generation) return false;
-      // The asset wrapper may already have converted this mesh to PBR and
-      // cached its world-material state. Mark the camera-owned objects before
-      // installing our overlay copies so scene/quality refreshes leave them
-      // alone. A flag on the parent is insufficient for Scene.traverse().
-      model.traverse(object => {
-        if (!object.isMesh && !object.isSprite) return;
-        object.userData.graphicsOwned = true;
-        object.castShadow = object.receiveShadow = false;
-      });
-      model.updateMatrixWorld(true);
-      const bounds = new THREE.Box3().setFromObject(model), size = bounds.getSize(new THREE.Vector3());
-      if (!Number.isFinite(size.x) || size.x < 0.0001) throw new Error('Пустая модель оружия');
-      const grip = new THREE.Vector3(bounds.min.x + size.x * 0.18, (bounds.min.y + bounds.max.y) / 2, bounds.min.z + size.z * 0.35);
-      // Average the actual foremost vertices, not the box corner: this tracks
-      // the barrel height of each original model when aligning ADS and flash.
-      const muzzleRaw = new THREE.Vector3(), point = new THREE.Vector3();
-      let muzzleVertices = 0;
-      model.traverse(object => {
-        if (!object.isMesh) return;
-        const positions = object.geometry.getAttribute('position');
-        for (let vertex = 0; vertex < positions.count; vertex++) {
-          point.fromBufferAttribute(positions, vertex).applyMatrix4(object.matrixWorld);
-          if (point.x >= bounds.max.x - size.x * 0.025) { muzzleRaw.add(point); muzzleVertices++; }
-        }
-      });
-      if (muzzleVertices) muzzleRaw.divideScalar(muzzleVertices);
-      else muzzleRaw.set(bounds.max.x, grip.y, grip.z);
-      const rotation = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
-        new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0)));
-      const scalar = spec.length / size.x;
-      const holder = new THREE.Group();
-      holder.name = 'original-viewmodel-weapon';
-      model.position.sub(grip);
-      holder.add(model); holder.quaternion.copy(rotation); holder.scale.setScalar(scalar);
-      // A weapon's rear sight/casing can sit above its barrel. Keep the whole
-      // normalized silhouette below the reticle, not just the muzzle center.
-      // Measure before attaching to the moving mount so this remains local.
-      const weaponBounds = new THREE.Box3().setFromObject(holder);
-      const materials = new Map();
-      model.traverse(object => {
-        if (!object.isMesh) return;
-        const overlayMaterial = original => {
-          if (!materials.has(original)) {
-            const material = original.clone();
-            material.depthTest = false; material.depthWrite = false; material.transparent = true;
-            material.fog = false; material.toneMapped = false;
-            materials.set(original, material);
-          }
-          return materials.get(original);
-        };
-        object.material = Array.isArray(object.material) ? object.material.map(overlayMaterial) : overlayMaterial(object.material);
-        object.renderOrder = 10020; object.frustumCulled = false;
-      });
+      candidate = await this._weaponFactory(selected);
+      if (this._disposed || token !== this._generation) { candidate?.dispose(); return false; }
+      if (!candidate?.group || !candidate.muzzle || !candidate.bounds) throw new Error('Пустая модель оружия');
       this._releaseModel();
-      this._model = holder;
-      this._modelMaterials = new Set(materials.values());
-      this.mount.add(holder);
+      this._weaponRecord = candidate;
+      this._model = candidate.group;
+      this.mount.add(candidate.group);
       this.weapon = selected;
-      this._muzzle.copy(muzzleRaw).sub(grip).multiplyScalar(scalar).applyQuaternion(rotation);
-      this._aim.set(-this._muzzle.x, -weaponBounds.max.y - ADS_CLEARANCE, -0.38);
-      this._hip.set(selected === 2 ? 0.22 : 0.21, selected === 2 ? -0.18 : -0.205, selected === 2 ? -0.42 : -0.38);
+      this._muzzle.copy(candidate.muzzle);
+      this._aim.set(-this._muzzle.x, -candidate.bounds.max.y - ADS_CLEARANCE, -0.38);
+      this._hip.set(selected === 2 ? 0.22 : 0.21, Math.min(selected === 2 ? -0.18 : -0.205, -candidate.bounds.max.y - 0.055), selected === 2 ? -0.42 : -0.38);
+      this._support.copy(candidate.support);
       this.leftHand.visible = selected !== 2;
-      this.leftHand.position.set(-0.045, -0.05, selected === 0 ? -0.015 : -0.28);
+      this.leftHand.position.copy(this._support);
       this.group.visible = this._visible;
       this._position.copy(this._hip);
+      this._equip = 1;
       return true;
     } catch (error) {
+      if (candidate && candidate !== this._weaponRecord) candidate.dispose();
       if (!this._disposed && token === this._generation) this.onError('Не удалось загрузить оружие от первого лица: ' + error.message, error);
       return false;
     }
@@ -222,6 +219,9 @@ export class ProceduralViewmodel {
     recoil = {}, movementX = 0, movementY = 0, grounded = true, landing = 0 } = {}) {
     if (this._disposed) return this;
     const seconds = clamp(finite(dt), 0, 0.25), aimTarget = clamp(Number(aiming) || 0, 0, 1);
+    this._clock += seconds;
+    this._equip *= Math.exp(-seconds * 13);
+    this._weaponRecord?.update(seconds, { reloading, reloadProgress });
     this._aimAmount = smooth(this._aimAmount, sprinting || reloading ? 0 : aimTarget, 18, seconds);
     this._sprintAmount = smooth(this._sprintAmount, sprinting ? 1 : 0, 13, seconds);
     const walk = clamp(Math.abs(finite(speed)) / 4.3, 0, 1.8) * (grounded ? 1 : 0);
@@ -236,17 +236,31 @@ export class ProceduralViewmodel {
     const aim = this._aimAmount, sprint = this._sprintAmount, bob = this._bob * (1 - aim * 0.94);
     const reload = reloading ? Math.sin(Math.PI * clamp(finite(reloadProgress), 0, 1)) : 0;
     const recoilPitch = clamp(finite(recoil.pitch), -0.1, 0.2), recoilYaw = clamp(finite(recoil.yaw), -0.1, 0.1);
+    const breathing = (Math.sin(this._clock * 1.7) + Math.sin(this._clock * 2.31) * 0.25) * 0.0007 * (1 - aim * 0.8);
     const x = this._hip.x * (1 - aim) + this._aim.x * aim + Math.sin(this._phase) * 0.006 * bob - this._swayX * 0.13 * (1 - aim * 0.8) - sprint * 0.08;
-    const y = this._hip.y * (1 - aim) + this._aim.y * aim + Math.cos(this._phase * 2) * 0.005 * bob - this._landing * 0.022 - sprint * 0.11 - reload * 0.13;
-    const z = this._hip.z * (1 - aim) + this._aim.z * aim + recoilPitch * 1.2 + sprint * 0.075 + reload * 0.10;
+    const y = this._hip.y * (1 - aim) + this._aim.y * aim + Math.cos(this._phase * 2) * 0.005 * bob + breathing - this._landing * 0.022 - sprint * 0.11 - reload * 0.13 - this._equip * 0.11;
+    const z = this._hip.z * (1 - aim) + this._aim.z * aim + recoilPitch * 1.2 + sprint * 0.075 + reload * 0.10 + this._equip * 0.045;
     this._position.set(smooth(this._position.x, x, 22, seconds), smooth(this._position.y, y, 22, seconds), smooth(this._position.z, z, 28, seconds));
     this.mount.position.copy(this._position);
-    this._rotation.set(recoilPitch * 1.5 - this._swayY * (1 - aim * 0.85) - sprint * 0.30 - reload * 0.7,
+    this._rotation.set(recoilPitch * 1.5 - this._swayY * (1 - aim * 0.85) - sprint * 0.30 - reload * 0.7 - this._equip * 0.25,
       recoilYaw - this._swayX * (1 - aim * 0.85) + sprint * 0.35 + reload * 0.3,
       Math.sin(this._phase) * 0.014 * bob - sprint * 0.45 - reload * 0.55);
     this.mount.rotation.set(this._rotation.x, this._rotation.y, this._rotation.z);
+    // Keep recoil/sway from sweeping the rear sight or an optic over the
+    // reticle. The cached neutral bound makes this eight cheap corner checks,
+    // independent of model detail and without per-frame geometry traversal.
+    if (aim > 0.55 && !reloading && this._weaponRecord) {
+      const bounds = this._weaponRecord.bounds;
+      let top = -Infinity;
+      for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
+        top = Math.max(top, this._clearanceCorner.set(x, y, z).applyQuaternion(this.mount.quaternion).y);
+      }
+      this.mount.position.y = Math.min(this.mount.position.y, -0.025 - top);
+    }
     // Support hand leaves the fore-end during the middle of the reload.
-    this.leftHand.position.y = -0.05 - reload * 0.15;
+    this.leftHand.position.copy(this._support);
+    this.leftHand.position.y -= reload * 0.13;
+    this.leftHand.position.z += reload * 0.09;
     this.leftHand.rotation.x = -0.15 + reload * 1.1;
     for (const flash of this._flashes) {
       flash.life = Math.max(0, flash.life - seconds);
@@ -257,7 +271,9 @@ export class ProceduralViewmodel {
   }
 
   flash() {
-    if (this._disposed || !this._model || this.weapon === 2) return false;
+    if (this._disposed || !this._model) return false;
+    this._weaponRecord?.shot();
+    if (this.weapon === 2) return false;
     const flash = this._flashes[this._flashCursor++ % this._flashes.length];
     flash.life = 0.045;
     flash.sprite.position.copy(this._muzzle); flash.sprite.position.z -= 0.012;
@@ -281,6 +297,7 @@ export class ProceduralViewmodel {
     for (const material of this._ownedMaterials) material.dispose();
     for (const { sprite } of this._flashes) sprite.material.dispose();
     this._flashTexture.dispose();
+    this._gloveTexture.dispose();
     this._ownedGeometry.clear(); this._ownedMaterials.clear();
   }
 }

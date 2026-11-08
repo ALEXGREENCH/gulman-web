@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { GraphicsManager, getGraphicsProfile, deriveSurfacePixels } from '../js/graphics.js';
+import { GraphicsManager, getGraphicsProfile, deriveSurfacePixels, reduceEnvironmentTexture } from '../js/graphics.js';
 
 function renderer(maxAnisotropy = 4) {
   return {
@@ -328,4 +328,53 @@ test('water uses archived texture names and horizontal geometry, not misleading 
   graphics.setMode('original');
   assert.equal(water.material.isMeshLambertMaterial, true);
   graphics.dispose();
+});
+
+test('HDR preparation is lazy, deduplicated, bounded, and restores the original sky exactly', async () => {
+  let loads=0;
+  const texture=new THREE.DataTexture(new Float32Array([1,1,1,1, 6,6,6,1, .1,.2,.3,1, .2,.3,.4,1]),2,2,THREE.RGBAFormat,THREE.FloatType);
+  texture.flipY=true;let disposals=0;texture.addEventListener('dispose',()=>disposals++);
+  const graphics=manager({loadEnvironment:async url=>{loads++;assert.match(url,/kloofendal_48d_partly_cloudy_puresky\.hdr$/);return texture;}});
+  const assets={textures:new Map(),texture:async()=>new THREE.Texture(),url:path=>'https://local.test/'+path};
+  await graphics.applyAssets(assets);
+  const scene=new THREE.Scene(),original=new THREE.Color(0xacc5cc);scene.background=original;
+  graphics.applyRenderer(renderer()).applyScene(scene);
+  assert.equal(await graphics.prepareEnvironment(),null);
+  assert.equal(loads,0);
+  graphics.setMode('enhanced');
+  const [a,b]=await Promise.all([graphics.prepareEnvironment(),graphics.prepareEnvironment()]);
+  assert.equal(a,texture);assert.equal(b,texture);assert.equal(loads,1);
+  assert.equal(scene.background,texture);
+  assert.equal(graphics.diagnostics.sky,'poly-haven-hdr');
+  graphics.setMode('original');
+  assert.equal(scene.background,original);
+  graphics.setMode('enhanced');await graphics.prepareEnvironment();assert.equal(loads,1);
+  graphics.dispose();assert.equal(disposals,1);assert.equal(scene.background,original);
+});
+
+test('a late HDR load cannot re-enable enhancements after a mode switch or disposal', async () => {
+  let resolve;
+  const texture=new THREE.DataTexture(new Float32Array(16).fill(1),2,2,THREE.RGBAFormat,THREE.FloatType);
+  let disposed=0;texture.addEventListener('dispose',()=>disposed++);
+  const graphics=manager({loadEnvironment:()=>new Promise(done=>{resolve=done;})});
+  await graphics.applyAssets({textures:new Map(),texture:async()=>null,url:path=>path});
+  const scene=new THREE.Scene(),original=new THREE.Color(0x123456);scene.background=original;
+  graphics.applyRenderer(renderer()).applyScene(scene).setMode('enhanced');
+  const pending=graphics.prepareEnvironment();
+  graphics.setMode('original');graphics.dispose();resolve(texture);
+  assert.equal(await pending,null);assert.equal(scene.background,original);assert.equal(disposed,1);
+});
+
+test('HDR reduction averages bright radiance instead of clipping or dropping sun pixels', () => {
+  const pixels=new Float32Array(8*4*4).fill(1);
+  pixels[0]=pixels[1]=pixels[2]=17;
+  const source=new THREE.DataTexture(pixels,8,4,THREE.RGBAFormat,THREE.FloatType);source.flipY=true;
+  const result=reduceEnvironmentTexture(source,4);
+  assert.equal(result.image.width,4);assert.equal(result.image.height,2);
+  assert.equal(result.image.data[0],5);
+  assert.equal(result.image.data[3],1);
+  assert.equal(result.flipY,true);
+  assert.equal(result.colorSpace,THREE.LinearSRGBColorSpace);
+  assert.equal(source.image.width,8);
+  result.dispose();source.dispose();
 });

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { EnhancedPostprocessing } from './postprocessing.js?v=20261108-4';
+import { EnhancedPostprocessing } from './postprocessing.js?v=20261108-6';
 
 const STORAGE_KEY = 'gulman-web-graphics-v1';
 const SHARPEN_ID = 'gulman-art-sharpen';
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const ENVIRONMENT_PATH = 'assets/enhanced/sky/kloofendal_48d_partly_cloudy_puresky.hdr';
 
 export const GRAPHICS_MODES = Object.freeze({
   original: Object.freeze({ label: 'Оригинал', pixelRatioCap: 1.5, anisotropy: 4, artEnhancement: false }),
@@ -127,6 +128,42 @@ function browserStorage() {
   try { return globalThis.localStorage; } catch { return undefined; }
 }
 
+/** Bound decoded HDR dimensions before Three creates the background cubemap.
+ * Box averaging retains small bright sun pixels, unlike nearest downsampling.
+ */
+export function reduceEnvironmentTexture(source, maximumWidth = 1024) {
+  const image = source?.image;
+  if (!image?.data || image.width <= maximumWidth || !image.height) return source;
+  const factor = Math.max(1, Math.ceil(image.width / maximumWidth));
+  const width = Math.max(1, Math.floor(image.width / factor)), height = Math.max(1, Math.floor(image.height / factor));
+  const half = source.type === THREE.HalfFloatType;
+  const pixels = half ? new Uint16Array(width * height * 4) : new Float32Array(width * height * 4);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const sum = [0, 0, 0, 0];
+    let count = 0;
+    for (let dy = 0; dy < factor && y * factor + dy < image.height; dy++) for (let dx = 0; dx < factor && x * factor + dx < image.width; dx++) {
+      const offset = ((y * factor + dy) * image.width + x * factor + dx) * 4;
+      for (let c = 0; c < 4; c++) sum[c] += half ? THREE.DataUtils.fromHalfFloat(image.data[offset + c]) : image.data[offset + c];
+      count++;
+    }
+    const offset = (y * width + x) * 4;
+    for (let c = 0; c < 4; c++) pixels[offset + c] = half ? THREE.DataUtils.toHalfFloat(sum[c] / count) : sum[c] / count;
+  }
+  const reduced = new THREE.DataTexture(pixels, width, height, THREE.RGBAFormat, source.type);
+  reduced.name = 'Poly Haven / Kloofendal 48d Partly Cloudy Pure Sky (CC0)';
+  reduced.colorSpace = THREE.LinearSRGBColorSpace;
+  reduced.mapping = THREE.EquirectangularReflectionMapping;
+  reduced.flipY = source.flipY;
+  reduced.minFilter = reduced.magFilter = THREE.LinearFilter;
+  reduced.needsUpdate = true;
+  return reduced;
+}
+
+async function defaultEnvironmentLoader(url) {
+  const { HDRLoader } = await import('../vendor/addons/loaders/HDRLoader.js');
+  return new HDRLoader().loadAsync(url);
+}
+
 /**
  * Reversible PBR, image-derived detail, environment lighting, local sun shadows
  * and a bounded HDR pipeline. Original/economy do not allocate that pipeline.
@@ -138,10 +175,18 @@ function browserStorage() {
  * groundY can instead provide the measured floor under an airborne player.
  */
 export class GraphicsManager {
-  constructor({ onChange = () => {}, storage = browserStorage(), document: ownerDocument = globalThis.document } = {}) {
+  constructor({ onChange = () => {}, storage = browserStorage(), document: ownerDocument = globalThis.document, loadEnvironment = defaultEnvironmentLoader } = {}) {
     this.onChange = onChange;
     this.storage = storage;
     this.document = ownerDocument;
+    this._loadEnvironment = loadEnvironment;
+    this._assets = null;
+    this._environmentSource = null;
+    this._loadedEnvironmentTexture = null;
+    this._environmentTexturePromise = null;
+    this._environmentLoading = false;
+    this._environmentLoadError = null;
+    this._skyOwned = false;
     this.mode = 'original';
     this.lighting = true;
     this.quality = 'auto';
@@ -205,6 +250,9 @@ export class GraphicsManager {
       fallback: this._postFailed,
       fallbackReason: this._fallbackReason,
       environmentFallback: this._environmentFailed,
+      sky: this._environmentSource ? 'poly-haven-hdr' : 'procedural',
+      environmentLoading: this._environmentLoading,
+      environmentLoadError: this._environmentLoadError,
     };
   }
 
@@ -249,6 +297,7 @@ export class GraphicsManager {
 
   applyAssets(assets) {
     if (!assets || this._disposed) return Promise.resolve([]);
+    this._assets = assets;
     if (!this._assetBindings.has(assets)) {
       const original = assets.texture;
       const manager = this;
@@ -281,6 +330,76 @@ export class GraphicsManager {
     return Promise.all([...assets.textures?.values() ?? []].map(value => Promise.resolve(value)
       .then(texture => { if (!this._disposed) this._configureTexture(texture); return texture; })
       .catch(() => undefined)));
+  }
+
+  /** Lazy, optional CC0 HDRI. Original/economy never initiate this download.
+   * Root may await it alongside EnhancedWorld.load() for a single loading screen.
+   */
+  async prepareEnvironment(assets = this._assets) {
+    if (this._disposed || this.mode !== 'enhanced' || !assets?.url) return null;
+    if (this._environmentSource) return this._environmentSource;
+    if (this._environmentTexturePromise) return this._environmentTexturePromise;
+    this._environmentLoading = true;
+    this._environmentLoadError = null;
+    this._environmentTexturePromise = (async () => {
+      try {
+        const loaded = await this._loadEnvironment(assets.url(ENVIRONMENT_PATH));
+        if (this._disposed) { loaded.dispose(); return null; }
+        const texture = reduceEnvironmentTexture(loaded);
+        if (texture !== loaded) loaded.dispose();
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        texture.userData.graphicsOwned = true;
+        this._loadedEnvironmentTexture = texture;
+        this.setEnvironment(texture);
+        return texture;
+      } catch (error) {
+        this._environmentLoadError = String(error?.message ?? error);
+        this._environmentTexturePromise = null;
+        console.warn('Photographic sky unavailable; procedural daylight remains active:', error);
+        return null;
+      } finally { this._environmentLoading = false; }
+    })();
+    return this._environmentTexturePromise;
+  }
+
+  /** Borrow an already-loaded equirectangular texture; ownership stays with caller. */
+  setEnvironment(texture) {
+    if (this._disposed || this._environmentSource === texture) return this;
+    this._environment?.dispose(); this._environment = null;
+    if (this._skyOwned) this._skyTexture?.dispose();
+    this._skyTexture = null; this._skyOwned = false;
+    this._environmentSource = texture ?? null;
+    this._environmentFailed = false;
+    if (texture) {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      this._matchSunToEnvironment(texture);
+    }
+    if (this.enhancedLighting && this._scene) this.applyScene(this._scene, this._player);
+    return this;
+  }
+
+  _matchSunToEnvironment(texture) {
+    const image = texture.image;
+    if (!image?.data || !image.width || !image.height) return;
+    const half = texture.type === THREE.HalfFloatType;
+    let strongest = 0, bestX = 0, bestY = 0, sum = 0, count = 0;
+    for (let y = 0; y < image.height; y++) {
+      const v = texture.flipY ? 1 - (y + 0.5) / image.height : (y + 0.5) / image.height;
+      if (v < 0.56) continue;
+      for (let x = 0; x < image.width; x++) {
+        const index = (y * image.width + x) * 4;
+        const r = half ? THREE.DataUtils.fromHalfFloat(image.data[index]) : image.data[index];
+        const g = half ? THREE.DataUtils.fromHalfFloat(image.data[index + 1]) : image.data[index + 1];
+        const b = half ? THREE.DataUtils.fromHalfFloat(image.data[index + 2]) : image.data[index + 2];
+        const luminance = r * 0.2126 + g * 0.7152 + b * 0.0722;
+        sum += luminance; count++;
+        if (luminance > strongest) { strongest = luminance; bestX = x; bestY = v; }
+      }
+    }
+    if (strongest < sum / Math.max(1, count) * 3) return;
+    const azimuth = ((bestX + 0.5) / image.width - 0.5) * Math.PI * 2;
+    const elevation = (bestY - 0.5) * Math.PI;
+    this._sunDirection.set(Math.cos(elevation) * Math.cos(azimuth), Math.sin(elevation), Math.cos(elevation) * Math.sin(azimuth)).normalize();
   }
 
   _configureTexture(texture, restore = false) {
@@ -523,6 +642,7 @@ export class GraphicsManager {
     if (this._scene && scene !== this._scene) this.releaseScene(this._scene);
     this._scene = scene;
     this._player = player;
+    if (this.mode === 'enhanced') void this.prepareEnvironment();
     let original = this._sceneStates.get(scene);
     if (!original) {
       original = {
@@ -583,12 +703,12 @@ export class GraphicsManager {
       this._ensureEnvironment();
       if (this._skyTexture) {
         scene.background = this._skyTexture;
-        scene.backgroundIntensity = 1;
+        scene.backgroundIntensity = this._environmentSource ? 0.75 : 1;
         scene.backgroundBlurriness = 0;
       }
       if (this._environment) {
         scene.environment = this._environment.texture;
-        scene.environmentIntensity = 0.55;
+        scene.environmentIntensity = this._environmentSource ? 0.45 : 0.55;
       }
       this._sun = [...original.lights.keys()].find(light => light.isDirectionalLight) ?? null;
       if (this._sun) {
@@ -609,6 +729,10 @@ export class GraphicsManager {
   }
 
   _ensureEnvironment() {
+    if (!this._skyTexture && this._environmentSource) {
+      this._skyTexture = this._environmentSource;
+      this._skyOwned = false;
+    }
     if (!this._skyTexture) {
       const width = 512, height = 256;
       const pixels = new Uint16Array(width * height * 4);
@@ -642,6 +766,7 @@ export class GraphicsManager {
       sky.minFilter = sky.magFilter = THREE.LinearFilter;
       sky.needsUpdate = true;
       this._skyTexture = sky;
+      this._skyOwned = true;
     }
     if (!this._environment && !this._environmentFailed && this._renderer?.isWebGLRenderer) {
       let generator;
@@ -801,6 +926,7 @@ export class GraphicsManager {
     if (!Object.hasOwn(GRAPHICS_MODES, mode)) throw new RangeError(`Неизвестный режим графики: ${mode}`);
     const previous = this.mode;
     this.mode = mode;
+    if (mode === 'enhanced') void this.prepareEnvironment();
     if (previous !== mode) { this._warmup = 2; this._adaptiveElapsed = 0; this._renderScale = 1; }
     this._persist();
     this._applyDocument();
@@ -884,7 +1010,8 @@ export class GraphicsManager {
   _disposeEnhanced() {
     this._post?.dispose(); this._post = null;
     this._environment?.dispose(); this._environment = null;
-    this._skyTexture?.dispose(); this._skyTexture = null;
+    if (this._skyOwned) this._skyTexture?.dispose();
+    this._skyTexture = null; this._skyOwned = false;
     this._disposeMaterials();
     if (this._shadow) {
       this._shadow.removeFromParent();
@@ -920,6 +1047,8 @@ export class GraphicsManager {
       }
     }
     this._disposeEnhanced();
+    this._loadedEnvironmentTexture?.dispose(); this._loadedEnvironmentTexture = null;
+    this._environmentSource = this._assets = null;
     this._shadow = this._scene = this._player = this._renderer = null;
     this._assetBindings.clear();
     this._textures.clear();

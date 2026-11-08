@@ -6,23 +6,24 @@ import {CrowdRenderer} from './crowd.js';
 import {OriginalUI} from './original-ui.js';
 import {AudioManager} from './audio.js';
 import {createPlayerChoice} from './player-choice.js';
-import {GraphicsManager} from './graphics.js?v=20261108-4';
-import {CombatController} from './combat.js?v=20261108-4';
-import {ProceduralViewmodel} from './viewmodel.js?v=20261108-4';
-import {MotionController} from './motion.js?v=20261108-4';
-import {CombatFX} from './combat-fx.js?v=20261108-4';
+import {GraphicsManager} from './graphics.js?v=20261108-6';
+import {CombatController} from './combat.js?v=20261108-6';
+import {ProceduralViewmodel} from './viewmodel.js?v=20261108-6';
+import {MotionController} from './motion.js?v=20261108-6';
+import {CombatFX} from './combat-fx.js?v=20261108-6';
+import {EnhancedWorld} from './enhanced-world.js?v=20261108-6';
 
 const $=id=>document.getElementById(id);
 const assets=new Assets(), keys=new Set();
 const locations=['Италия · Пляж','Италия · Отель','Греция · Акрополь','Голландия','Индия · Тадж-Махал','Франция','Мексика · Чичен-Ица','Россия · Красная площадь','Финальная схватка'];
 const tasks=['Найди письмо связиста','Обезвредь бомбу','Найди статую Венеры','Найди картину','Найди древнюю книгу','Найди Мону Лизу','Найди реликвию майя','Собери две реликвии','Собери четыре артефакта'];
 const weapons=[{name:'ПИСТОЛЕТ',damage:34,rate:.3,cost:1,sound:'sounds/weapons/pistol-01.wav'},{name:'АВТОМАТ',damage:24,rate:.1,cost:1,sound:'sounds/weapons/aug-1.wav'},{name:'ГРАНАТА',damage:120,rate:1,cost:5,splash:5,sound:'sounds/weapons/gl_explodesmoke.wav'},{name:'БИГГАН',damage:85,rate:.65,cost:3,splash:2,sound:'sounds/weapons/sg_mediumexplode.wav'}];
-let renderer,scene,camera,world,worldMesh,player,level,actors=[],items=[],hazards=[],effects=[],crowd,combatFX,viewmodel;
+let renderer,scene,camera,world,worldMesh,player,level,actors=[],items=[],hazards=[],effects=[],crowd,combatFX,viewmodel,enhancedWorld;
 let running=false,loaded=false,busy=false,thirdPerson=true,shooting=false,grounded=false;
 let yaw=0,pitch=-.08,hp=100,ammo=120,money=0,weapon=0,collected=0,totalKeys=0,kills=0,shotTimer=0,toastTimer=0,damageTimer=0,hitTimer=0,saveTimer=0;
 const position=new THREE.Vector3(),velocity=new THREE.Vector3(),spawn=new THREE.Vector3();
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),tmp=new THREE.Vector3();
-let lastFrame=performance.now(),frameCount=0,fpsTime=0;
+let lastFrame=performance.now(),frameCount=0,fpsTime=0,frameCPUTime=0;
 let drag=null,comicIndex=0,mapBounds,firePointer=null,aimHeld=false,crouchPressed=false,lookX=0,lookY=0;
 const combat=new CombatController(),motion=new MotionController();
 let cameraPreference=null;try{cameraPreference=localStorage.getItem('gulman-camera');}catch{}
@@ -43,8 +44,16 @@ let lastGraphicsMode=graphics.mode;
 const hero=createPlayerChoice({assets,getPlayer:()=>player,setPlayer:value=>{player=value;},getScene:()=>loaded?scene:null,getPosition:()=>position,getYaw:()=>yaw,getWeapon:()=>weapon,onChange:name=>{updateHeroName(name);if(loaded){graphics.applyScene(scene,player);heroVoice();}},onError:message=>toast(message)});
 
 function isEnhanced(){return graphics.mode==='enhanced';}
+async function ensureEnhancedWorld(){
+  const layer=enhancedWorld;if(!layer||!isEnhanced())return;
+  layer.setEnabled(true);$('game').dataset.enhancedAssets=layer.ready?'ready':'loading';
+  try{await layer.load();if(layer===enhancedWorld){layer.setEnabled(isEnhanced());$('game').dataset.enhancedAssets='ready';}}
+  catch(error){if(layer.disposed&&layer!==enhancedWorld)return;console.error('Enhanced assets:',error);layer.dispose();if(layer===enhancedWorld){$('game').dataset.enhancedAssets='fallback';toast('Не удалось загрузить новые ресурсы Enhanced. Проверь соединение и перезагрузи уровень.');}}
+}
 function syncGraphics(){
   combatFX?.setEnabled(isEnhanced());
+  if(!isEnhanced()&&enhancedWorld?.promise){const old=enhancedWorld;old.dispose();enhancedWorld=new EnhancedWorld({assets,scene,world:worldMesh,modelData:old.modelData,levelId:level.id,groundSample:(x,y,z)=>world.ground(x,y,z,35),quality:graphics.diagnostics.effectiveQuality});$('game').dataset.enhancedAssets='unloaded';}
+  enhancedWorld?.setEnabled(isEnhanced());if(loaded&&isEnhanced())void ensureEnhancedWorld();
   if(lastGraphicsMode!==graphics.mode){combat.reset({ammo,weapon});motion.prepare(player);motion.reset();world&&(world.height=1.65);if(!cameraPreference)thirdPerson=!isEnhanced();}
   lastGraphicsMode=graphics.mode;
   if(isEnhanced())viewmodel?.setWeapon(weapon);
@@ -52,7 +61,8 @@ function syncGraphics(){
   $('enhanced-controls').hidden=!isEnhanced();
   $('game').dataset.renderMode=graphics.mode;if(loaded)updateHUD();
 }
-function setCamera(third){thirdPerson=third;cameraPreference=third?'third':'first';try{localStorage.setItem('gulman-camera',cameraPreference);}catch{}viewmodel?.setVisible(isEnhanced()&&!third);$('camera-switch').textContent=third?'Вид: 3':'Вид: 1';}
+function updateCameraButton(){const button=$('camera-switch');button.textContent=thirdPerson?'От 1-го лица':'От 3-го лица';button.title=(thirdPerson?'Переключить на вид от первого лица':'Переключить на вид от третьего лица')+' (C)';button.setAttribute('aria-label',button.title);}
+function setCamera(third){thirdPerson=third;cameraPreference=third?'third':'first';try{localStorage.setItem('gulman-camera',cameraPreference);}catch{}viewmodel?.setVisible(isEnhanced()&&!third);updateCameraButton();}
 function reloadWeapon(){if(!running||!isEnhanced())return;if(combat.reload(ammo)){void audio.play('sounds/weapons/ricstone01.wav',.15,{duration:.12});updateCombatHUD();}}
 function updateCombatHUD(){
   const modern=isEnhanced();$('enhanced-controls').hidden=!modern;$('reload-meter').hidden=!modern||!combat.reloading;
@@ -74,12 +84,12 @@ function menuScreen(id,options={}){pause(false);$('hud').hidden=true;ui.show(id,
 function pauseMenu(){if(hp<=0){deathMenu();return;}mainMenu();}
 function mainMenu(){menuScreen('main',{hotspotLabels:{EVEL1:loaded&&hp>0?'Продолжить игру':'Играть'},extras:(saved||loaded)?'<button data-command="CONTINUE">Продолжить</button>':'',extrasRect:[165,655,300,48],extrasClass:'original-toolbar'});}
 function chooseLevel(){menuScreen('levels',{extras:'<button data-command="EVEL9">9. Финальная схватка</button>',extrasRect:[190,588,390,48],extrasClass:'original-toolbar'});}
-function about(){showDialog('<h2>Гульмэн 3D — веб-версия</h2><p>Святослав Гуляев и команда оригинальной игры. Оригинальные уровни, модели, анимации, меню, иллюстрации и звук.</p><p>Движение и игровая логика восстановлены для браузера. Настройки и дополнительные кнопки адаптированы для веб-версии.</p><p><a href="https://www.gulman.ru/gul1.html" target="_blank" rel="noopener">Сайт автора</a></p>');}
+function about(){showDialog('<h2>Гульмэн 3D — веб-версия</h2><p>Ресурсы Enhanced: <a href="https://polyhaven.com/" target="_blank" rel="noopener">Powered by Poly Haven</a> (CC0).</p><p>Святослав Гуляев и команда оригинальной игры. Оригинальные уровни, модели, анимации, меню, иллюстрации и звук.</p><p>Движение и игровая логика восстановлены для браузера. Настройки и дополнительные кнопки адаптированы для веб-версии.</p><p><a href="https://www.gulman.ru/gul1.html" target="_blank" rel="noopener">Сайт автора</a></p>');}
 function saveControls(){try{localStorage.setItem('gulman-controls',JSON.stringify({sensitivity,invertMouse}));}catch{}}
 function help(){menuScreen('controls',{extras:`<div class="control-table"><b>W A S D</b><span>Движение</span><b>Мышь / ← →</b><span>Обзор</span><b>Shift / Space</b><span>Бег / прыжок</span><b>ЛКМ / E</b><span>Стрелять / подобрать</span><b>ПКМ / R</b><span>Прицел / перезарядка (Enhanced)</span><b>Ctrl</b><span>Присесть; на бегу — подкат</span><b>1 · 2 · 3 · 4</b><span>Оружие</span><b>F1 / F2</b><span>Гульмэн / Гульмоника</span><b>C / M / Esc</b><span>Камера / карта / меню</span></div><label>Камера<select id="camera-choice"><option value="first">От первого лица</option><option value="third">От третьего лица</option></select></label><label>Герой<select id="hero-choice"><option value="Gulman">Гульмэн — F1</option><option value="Dama">Гульмоника — F2</option></select></label><label>Чувствительность мыши <input id="sensitivity" type="range" min="0.3" max="2.5" step="0.1" value="${sensitivity}"></label><label><input id="invert-mouse" type="checkbox" ${invertMouse?'checked':''}>Инверсия мыши</label>`,extrasRect:[350,200,430,450]});$('camera-choice').value=thirdPerson?'third':'first';$('camera-choice').onchange=e=>setCamera(e.target.value==='third');$('hero-choice').value=hero.value;$('hero-choice').onchange=e=>hero.select(e.target.value);$('sensitivity').oninput=e=>{sensitivity=+e.target.value;saveControls();};$('invert-mouse').onchange=e=>{invertMouse=e.target.checked;saveControls();};}
 function soundMenu(){menuScreen('audio',{extras:`<label><input type="checkbox" id="sound-enabled" ${audio.muted?'':'checked'}>Включить звук</label><label>Музыка <output id="music-volume-value">${Math.round(audio.musicVolume*100)}%</output><input id="music-volume" aria-label="Громкость музыки" type="range" min="0" max="100" value="${audio.musicVolume*100}"></label><label>Эффекты и голоса <output id="effects-volume-value">${Math.round(audio.effectsVolume*100)}%</output><input id="effects-volume" aria-label="Громкость эффектов" type="range" min="0" max="100" value="${audio.effectsVolume*100}"></label><button data-command="TEST_SOUND">Проверить звук</button><p id="audio-status" role="status"></p>`});$('sound-enabled').onchange=e=>{audio.muted=!e.target.checked;audio.unlock();};for(const name of ['music','effects'])$(name+'-volume').oninput=e=>{audio[name+'Volume']=+e.target.value/100;$(name+'-volume-value').textContent=e.target.value+'%';};updateSoundStatus();}
 function graphicsMenu(){
-  menuScreen('graphics',{extras:`<label>Режим<select id="graphics-mode"><option value="potato">Калькулятор</option><option value="original">Оригинал</option><option value="enhanced">Enhanced — современный рендер</option></select></label><label>Качество Enhanced<select id="graphics-quality"><option value="auto">Авто — по производительности</option><option value="high">Высокое</option><option value="low">Лёгкое</option></select></label><label><input id="light-effects" type="checkbox" ${graphics.lighting?'checked':''}>Объёмный свет и тени</label><p>Материалы, отражённый свет, тени, свечение и сглаживание.</p><output id="graphics-status" role="status"></output>`,extrasRect:[350,210,420,435]});
+  menuScreen('graphics',{extras:`<label>Режим<select id="graphics-mode"><option value="potato">Калькулятор</option><option value="original">Оригинал</option><option value="enhanced">Enhanced — современный рендер</option></select></label><label>Качество Enhanced<select id="graphics-quality"><option value="auto">Авто — по производительности</option><option value="high">Высокое</option><option value="low">Лёгкое</option></select></label><label><input id="light-effects" type="checkbox" ${graphics.lighting?'checked':''}>Объёмный свет и тени</label><p>Новые модели, PBR-текстуры, живая вода, растительность и HDR-свет. Ресурсы Enhanced загружаются отдельно.</p><output id="graphics-status" role="status"></output>`,extrasRect:[350,210,420,435]});
   $('graphics-mode').value=graphics.mode;$('graphics-quality').value=graphics.quality;
   const state=()=>{$('graphics-status').textContent=graphics.mode==='enhanced'?'Enhanced включён':'Исходная графика';};
   $('light-effects').onchange=e=>{graphics.setLighting(e.target.checked,{renderer,scene,player});state();};
@@ -94,10 +104,11 @@ function menuCommand(command){audio.unlock();if(command==='ESC'||command==='MENU
 function initRenderer(){if(renderer)return;renderer=new THREE.WebGLRenderer({canvas:$('game'),antialias:false,powerPreference:'high-performance'});graphics.applyRenderer(renderer);renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.setClearColor(0x9caeaa);camera=new THREE.PerspectiveCamera(67,innerWidth/innerHeight,.08,1000);world=new WorldCollision({radius:.28,height:1.65,stepHeight:.45});viewmodel=new ProceduralViewmodel({assets,onError:message=>toast(String(message))});camera.add(viewmodel.group);window.addEventListener('resize',()=>{graphics.applyRenderer(renderer);renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();graphics.resize(innerWidth,innerHeight);});$('game').addEventListener('webglcontextlost',e=>{e.preventDefault();pause(false);showDialog('<h2>Графический контекст потерян</h2><p>Обнови страницу. Сохранение текущего уровня останется на устройстве.</p>');});requestAnimationFrame(frame);}
 async function loadLevel(id,restore=false){if(busy||!assets.manifest)return;busy=true;pause(false);closeDialog();$('loading').hidden=false;$('loading-title').textContent=locations[id-1];$('loading-status').textContent='Оригинальная геометрия и текстуры…';$('menu').hidden=true;
   try{
-    initRenderer();hero.cancel();loaded=false;graphics.releaseScene?.(scene);combatFX?.dispose();crowd?.dispose();for(const actor of actors)actor.char.dispose();player?.dispose();player=null;actors=[];items=[];hazards=[];effects=[];
+    initRenderer();hero.cancel();loaded=false;enhancedWorld?.dispose();enhancedWorld=null;graphics.releaseScene?.(scene);combatFX?.dispose();crowd?.dispose();for(const actor of actors)actor.char.dispose();player?.dispose();player=null;actors=[];items=[];hazards=[];effects=[];
     level=assets.manifest.levels.find(l=>l.id===id);scene=new THREE.Scene();scene.add(camera);scene.background=new THREE.Color(id===9?0x6c7d81:0xacc5cc);scene.fog=new THREE.Fog(scene.background,180,650);scene.add(new THREE.HemisphereLight(0xf1f1df,0x626d55,2.1));const sun=new THREE.DirectionalLight(0xfff0cf,1.5);sun.position.set(80,180,50);scene.add(sun);
     const skyPath=assets.manifest.images['textures/!!!!!!sky_jpg__0.jpg'];if(skyPath){const sky=await assets.texture({map:skyPath});sky.mapping=THREE.EquirectangularReflectionMapping;scene.background=sky;}
     worldMesh=await assets.model(level.model);scene.add(worldMesh);worldMesh.updateMatrixWorld(true);$('loading-status').textContent='Столкновения и персонажи…';await new Promise(r=>setTimeout(r,20));world.setWorld(worldMesh);
+    enhancedWorld=new EnhancedWorld({assets,scene,world:worldMesh,modelData:await assets.json(assets.manifest.models[level.model.toLowerCase()]),levelId:id,groundSample:(x,y,z)=>world.ground(x,y,z,35),quality:graphics.diagnostics.effectiveQuality});
     mapBounds=new THREE.Box3().setFromObject(worldMesh);
     const start=level.entities.filter(e=>e.command==='GameStart').at(-1);if(!start)throw new Error('Нет точки старта');position.set(start.x/100,start.y/100,start.z/100);const floor=world.ground(position.x,position.y+.2,position.z,50);position.y=(floor??position.y-1)+.03;spawn.copy(position);velocity.set(0,0,0);grounded=false;
     const keyEntity=level.entities.find(e=>e.command==='GameKey');yaw=keyEntity?Math.atan2(keyEntity.x/100-position.x,keyEntity.z/100-position.z):0;pitch=-.07;
@@ -119,7 +130,7 @@ async function loadLevel(id,restore=false){if(busy||!assets.manifest)return;busy
       if(['GameEnd','GameKey','МАГАЗИН'].includes(e.command)){const ring=new THREE.Mesh(new THREE.TorusGeometry(.52,.025,6,32),new THREE.MeshBasicMaterial({color,depthTest:false}));ring.rotation.x=Math.PI/2;ring.position.y=-.2;holder.add(ring);}
       scene.add(holder);items.push({entry:e,pos:p,object:holder,collected:false,baseY:p.y});
     }));
-    crowd=new CrowdRenderer(scene,actors);combatFX=new CombatFX(scene);graphics.applyScene(scene,player);loaded=true;syncGraphics();if(isEnhanced())await viewmodel.setWeapon(weapon);$('hud').hidden=false;$('level-label').textContent=`МИССИЯ ${String(id).padStart(2,'0')} / 09 · ${locations[id-1]}`;updateHUD();updateCamera(true);crowd.update(camera.position);graphics.render(renderer,scene,camera,0);setMusic('music/t3.wav');saveProgress();
+    crowd=new CrowdRenderer(scene,actors);combatFX=new CombatFX(scene);graphics.applyScene(scene,player);loaded=true;syncGraphics();if(isEnhanced()){$('loading-status').textContent='Материалы и модели Enhanced…';await Promise.all([viewmodel.setWeapon(weapon),ensureEnhancedWorld(),graphics.prepareEnvironment(assets)]);}$('hud').hidden=false;$('level-label').textContent=`МИССИЯ ${String(id).padStart(2,'0')} / 09 · ${locations[id-1]}`;updateHUD();updateCamera(true);crowd.update(camera.position);graphics.render(renderer,scene,camera,0);setMusic('music/t3.wav');saveProgress();
     briefings();
   }catch(err){console.error(err);loaded=false;$('hud').hidden=true;$('menu').hidden=false;$('status').textContent='Не удалось загрузить уровень: '+err.message;showDialog(`<h2>Уровень не загрузился</h2><p id="load-error"></p><button id="back-to-menu">Вернуться в меню</button>`);$('load-error').textContent=err.message;$('back-to-menu').onclick=mainMenu;
   }finally{busy=false;$('loading').hidden=true;}
@@ -175,7 +186,7 @@ function updateEnemies(dt){const playerEye=position.clone().add(new THREE.Vector
 
 function updateCamera(instant=false,dt=.016){
   const modern=isEnhanced(),ads=modern?combat.ads:0;
-  const head=position.clone().add(new THREE.Vector3(0,modern&&motion.crouched?1.02:1.4,0));
+  const head=position.clone().add(new THREE.Vector3(0,modern?motion.eyeHeight:1.4,0));
   if(modern)head.y+=motion.landing+(!thirdPerson?motion.bob:0);
   const viewYaw=yaw+(modern?combat.recoil.yaw:0),viewPitch=pitch+(modern?combat.recoil.pitch:0);
   const direction=new THREE.Vector3(Math.sin(viewYaw)*Math.cos(viewPitch),Math.sin(viewPitch),Math.cos(viewYaw)*Math.cos(viewPitch));let desired;
@@ -185,13 +196,13 @@ function updateCamera(instant=false,dt=.016){
   const fov=modern?(75-ads*25+(motion.sprinting?7:motion.sliding?5:0)):67;
   camera.fov=instant?fov:THREE.MathUtils.lerp(camera.fov,fov,1-Math.exp(-dt*12));camera.updateProjectionMatrix();
   player.group.position.copy(position);player.group.rotation.y=yaw;player.group.visible=thirdPerson&&camera.position.distanceTo(head)>.8;
-  viewmodel?.setVisible(modern&&!thirdPerson);$('camera-switch').textContent=thirdPerson?'Вид: 3':'Вид: 1';
+  viewmodel?.setVisible(modern&&!thirdPerson);updateCameraButton();
 }
 function updateMap(){if($('minimap').hidden)return;const ctx=$('minimap').getContext('2d'),w=220;ctx.clearRect(0,0,w,w);ctx.fillStyle='#101a13e0';ctx.fillRect(0,0,w,w);const sx=mapBounds.max.x-mapBounds.min.x,sz=mapBounds.max.z-mapBounds.min.z,scale=190/Math.max(sx,sz);const map=p=>[110+(p.x-(mapBounds.min.x+mapBounds.max.x)/2)*scale,110+(p.z-(mapBounds.min.z+mapBounds.max.z)/2)*scale];ctx.strokeStyle='#75865e60';ctx.strokeRect(110-sx*scale/2,110-sz*scale/2,sx*scale,sz*scale);const dot=(p,c,r)=>{const [x,z]=map(p);ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,z,r,0,Math.PI*2);ctx.fill();};for(const a of actors)if(!a.dead)dot(a.pos,'#d47560',2);for(const i of items)if(!i.collected&&['GameKey','GameEnd'].includes(i.entry.command))dot(i.pos,i.entry.command==='GameKey'?'#f6cf71':'#a2e47e',4);dot(position,'white',4);const [x,z]=map(position);ctx.strokeStyle='white';ctx.beginPath();ctx.moveTo(x,z);ctx.lineTo(x+Math.sin(yaw)*10,z+Math.cos(yaw)*10);ctx.stroke();ctx.fillStyle='#c6d2b0';ctx.font='10px Arial';ctx.fillText('N',105,12);}
 
 function frame(now){
   requestAnimationFrame(frame);const elapsed=Math.min(.25,(now-lastFrame)/1000),dt=Math.min(.04,elapsed);lastFrame=now;
-  if(!loaded||!scene||(!running&&ui.visible))return;
+  if(!loaded||!scene||(!running&&ui.visible))return;const cpuStart=performance.now();
   if(running){
     const modern=isEnhanced();voiceTimer-=dt;if(voiceTimer<=0)heroVoice();shotTimer-=dt;saveTimer+=dt;
     if(saveTimer>10){saveTimer=0;saveProgress();}if(keys.has('ArrowLeft'))yaw+=dt*1.8;if(keys.has('ArrowRight'))yaw-=dt*1.8;if(keys.has('ArrowUp'))pitch=Math.min(.9,pitch+dt);if(keys.has('ArrowDown'))pitch=Math.max(-1.1,pitch-dt);
@@ -213,9 +224,9 @@ function frame(now){
   }
   for(let i=effects.length-1;i>=0;i--){const e=effects[i];e.ttl-=dt;if(e.ttl<=0){e.mesh.removeFromParent();e.mesh.geometry.dispose();e.mesh.material.dispose();effects.splice(i,1);}}
   if(toastTimer>0&&(toastTimer-=dt)<=0)$('toast').style.opacity=0;if(damageTimer>0&&(damageTimer-=dt)<=0)$('damage').style.borderColor='transparent';if(hitTimer>0&&(hitTimer-=dt)<=0)$('hitmarker').style.opacity=0;
-  graphics.update(position,{grounded,dt,time:now/1000,camera});crowd?.update(camera.position);graphics.render(renderer,scene,camera,elapsed);
-  frameCount++;fpsTime+=elapsed;
-  if(fpsTime>1){Object.assign($('game').dataset,{fps:String(Math.round(frameCount/fpsTime)),drawCalls:String(renderer.info.render.calls),level:String(level.id),position:position.toArray().map(n=>n.toFixed(2)).join(','),renderMode:graphics.mode,quality:graphics.quality,effectiveQuality:graphics.diagnostics.effectiveQuality,renderScale:String(graphics.diagnostics.renderScale),renderPasses:String(graphics.diagnostics.postprocessing?.passes||1)});frameCount=0;fpsTime=0;}
+  graphics.update(position,{grounded,dt,time:now/1000,camera});enhancedWorld?.update(now/1000,camera,graphics.diagnostics.effectiveQuality);crowd?.update(camera.position);graphics.render(renderer,scene,camera,elapsed);
+  frameCount++;fpsTime+=elapsed;frameCPUTime+=performance.now()-cpuStart;
+  if(fpsTime>1){Object.assign($('game').dataset,{fps:String(Math.round(frameCount/fpsTime)),cpuMs:(frameCPUTime/frameCount).toFixed(2),triangles:String(renderer.info.render.triangles),drawCalls:String(renderer.info.render.calls),level:String(level.id),position:position.toArray().map(n=>n.toFixed(2)).join(','),renderMode:graphics.mode,quality:graphics.quality,effectiveQuality:graphics.diagnostics.effectiveQuality,renderScale:String(graphics.diagnostics.renderScale),renderPasses:String(graphics.diagnostics.postprocessing?.passes||1),enhancedModels:String(enhancedWorld?.diagnostics.props||0),enhancedSurfaces:String(enhancedWorld?.diagnostics.surfaces||0),sky:graphics.diagnostics.sky});frameCount=0;fpsTime=0;frameCPUTime=0;}
 }
 
 document.addEventListener('pointerdown',()=>{if(!audio.unlocked)audio.unlock();},true);
