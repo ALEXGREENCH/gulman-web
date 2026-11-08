@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import {EnhancedMaterialLibrary} from './enhanced-materials.js?v=20261108-6';
-import {EnhancedWater} from './enhanced-water.js?v=20261108-6';
-import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261108-6';
-import {createEnhancedTerrainGeometry} from './enhanced-terrain.js?v=20261108-6';
-import {buildEnhancedBoats} from './enhanced-boats.js?v=20261108-6';
+import {EnhancedMaterialLibrary} from './enhanced-materials.js?v=20261108-7';
+import {EnhancedWater} from './enhanced-water.js?v=20261108-7';
+import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261108-7';
+import {createEnhancedTerrainGeometry} from './enhanced-terrain.js?v=20261108-7';
+import {buildEnhancedBoats} from './enhanced-boats.js?v=20261108-7';
+import {buildEnhancedArchitecture} from './enhanced-architecture.js?v=20261108-7';
 import {mergeWorldMeshes} from './merge-world.js';
 
 const assetRoot='assets/enhanced/models/';
@@ -57,7 +58,7 @@ export class EnhancedWorld {
     this.time={value:0};this.enabled=false;this.disposed=false;this.ready=false;this.replacements=0;this.surfaceCount=0;
     scene.add(this.group);
   }
-  get diagnostics(){return {ready:this.ready,enabled:this.enabled&&this.ready,surfaces:this.surfaceCount,props:this.replacements,plants:this.plantBatches.reduce((n,b)=>n+b.capacity,0),water:this.water?.diagnostics||null};}
+  get diagnostics(){return {ready:this.ready,enabled:this.enabled&&this.ready,surfaces:this.surfaceCount,props:this.replacements,architecture:this.architectureStats||null,plants:this.plantBatches.reduce((n,b)=>n+b.capacity,0),water:this.water?.diagnostics||null};}
   load(){if(!this.promise)this.promise=this._load().catch(error=>{this.setEnabled(false);this.disposed=true;this._release();throw error;});return this.promise;}
   async _load(){
     await this.library.load();if(this.disposed){this.library.dispose();return this;}
@@ -79,15 +80,22 @@ export class EnhancedWorld {
     props.group.traverse(o=>{if(o.geometry)this.geometries.add(o.geometry);});for(const m of props.materials)this.materials.add(m);for(const n of props.hidden)this._hideOriginal(n);
     const boats=buildEnhancedBoats(this.modelData);this.group.add(boats.group);this.replacements+=boats.replacements;
     for(const g of boats.geometries)this.geometries.add(g);for(const m of boats.materials)this.materials.add(m);for(const n of boats.hiddenMaterialNames)this._hideOriginal(n);
-    if(boats.retainedMeshes.length){
-      // The source boat atlas also contains two piers. Rebatch their original
-      // triangles separately so replacing the hull cannot remove either pier.
-      const materials={};
-      for(const name of boats.hiddenMaterialNames){const source=this.world.children.find(o=>o.name==='world:'+name)?.material;if(!source)continue;materials[name]=new THREE.MeshStandardMaterial({map:source.map,color:source.color,side:source.side,roughness:.74,metalness:.03});this.materials.add(materials[name]);}
-      const retained=mergeWorldMeshes({...this.modelData,meshes:boats.retainedMeshes},materials,Object.values(materials)[0]);retained.matrix.copy(this.world.matrixWorld);retained.matrixAutoUpdate=false;retained.traverse(o=>{owned(o);if(o.geometry)this.geometries.add(o.geometry);o.castShadow=true;o.receiveShadow=true;});this.group.add(retained);
-    }
+    this._retainSourceMeshes(boats.retainedMeshes,boats.hiddenMaterialNames);
+    const architecture=buildEnhancedArchitecture({modelData:this.modelData,world:this.world,library:this.library,levelId:this.levelId});
+    this.group.add(architecture.group);this.architectureStats=architecture.stats;
+    for(const g of architecture.geometries)this.geometries.add(g);for(const m of architecture.materials)this.materials.add(m);
+    for(const name of architecture.hiddenMaterialNames)this._hideOriginal(name);
+    this._retainSourceMeshes(architecture.retainedMeshes||[],architecture.hiddenMaterialNames);
     await this._plants();if(this.disposed){this._release();return this;}
     this.ready=true;this.setEnabled(this.enabled);return this;
+  }
+  _retainSourceMeshes(meshes,names){
+    if(!meshes.length)return;
+    // Shared atlases may contain geometry that was not replaced: boat piers,
+    // for example, or adjoining masonry around newly built columns.
+    const materials={};
+    for(const name of names){const source=this.world.children.find(o=>o.name==='world:'+name)?.material;if(!source)continue;materials[name]=new THREE.MeshStandardMaterial({map:source.map,color:source.color,side:source.side,roughness:.74,metalness:.03});this.materials.add(materials[name]);}
+    const retained=mergeWorldMeshes({...this.modelData,meshes},materials,Object.values(materials)[0]);retained.matrix.copy(this.world.matrixWorld);retained.matrixAutoUpdate=false;retained.traverse(o=>{owned(o);if(o.geometry)this.geometries.add(o.geometry);o.castShadow=true;o.receiveShadow=true;});this.group.add(retained);
   }
   _waterLevel(){
     const ys=[];for(const m of this.modelData.meshes){if(!m.groups?.some(p=>/^water\.jpg$/i.test(this.modelData.materials[p.material]?.originalMap||'')))continue;const p=meshPlacement(m);if(p.size.y<.1)ys.push(p.position.y);}

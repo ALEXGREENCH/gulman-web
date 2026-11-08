@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EnhancedPostprocessing } from './postprocessing.js?v=20261108-6';
+import { EnhancedPostprocessing } from './postprocessing.js?v=20261108-7';
 
 const STORAGE_KEY = 'gulman-web-graphics-v1';
 const SHARPEN_ID = 'gulman-art-sharpen';

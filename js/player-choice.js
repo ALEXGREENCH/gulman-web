@@ -6,7 +6,16 @@ const WEAPONS = [
   { path: 'models/weapons/granate.3ds', length: 0.2 },
   { path: 'models/weapons/weaponrifle2.3ds', length: 0.7 },
 ];
-const defaultCharacterFactory = async (...args) => (await import('./characters.js')).createCharacter(...args);
+const defaultCharacterFactory = async (...args) => (await import('./characters.js?v=20261108-7')).createCharacter(...args);
+
+// Physical number keys work in both Russian and English layouts. Function
+// keys remain available to the browser; editing and browser shortcuts win.
+export function heroForKey(event) {
+  if (event.repeat || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return null;
+  const target = event.target;
+  if (target?.isContentEditable || target?.closest?.('input,select,textarea,[contenteditable="true"],[role="textbox"]')) return null;
+  return event.code === 'Digit5' ? 'Gulman' : event.code === 'Digit6' ? 'Dama' : null;
+}
 
 /**
  * A race-safe, persistent Gulman / Gulmonika selection controller.
@@ -83,7 +92,7 @@ export function createPlayerChoice({ assets, getPlayer, setPlayer, getScene,
       if (stale()) { release(replacement); return null; }
 
       // Weapon changes can race the skin download. Retry against the latest
-      // selected weapon before committing so F1/F2 never restores an old gun.
+      // selected weapon before committing so hero selection never restores an old gun.
       while (true) {
         const spec = weaponSpec();
         const model = spec ? await loadModel(spec.path, true) : null;

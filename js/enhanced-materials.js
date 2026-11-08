@@ -29,7 +29,7 @@ uniform float enhancedWaterLevel;
 varying vec2 vEnhancedAtlasUV;
 uniform sampler2D enhancedAtlas;
 #endif
-#ifdef ENHANCED_SAND
+#if defined(ENHANCED_SAND) || defined(ENHANCED_GARDEN)
 uniform sampler2D enhancedRockColor;
 uniform sampler2D enhancedRockNormal;
 uniform sampler2D enhancedRockRoughness;
@@ -103,7 +103,7 @@ vec4 enhancedTexel = enhancedTriplanar( enhancedColor, enhancedP, enhancedW );
 #ifdef ENHANCED_ROCK_SURFACE
   enhancedTexel.rgb = enhancedCoastalRock( enhancedTexel.rgb );
 #endif
-#ifdef ENHANCED_SAND
+#if defined(ENHANCED_SAND) || defined(ENHANCED_GARDEN)
   vec3 enhancedGeometricN = normalize( cross( dFdx( vEnhancedMaterialWorld ), dFdy( vEnhancedMaterialWorld ) ) );
   float enhancedRockBlend = 1.0 - smoothstep( 0.53, 0.84, abs( enhancedGeometricN.y ) );
   #ifdef ENHANCED_ATLAS
@@ -111,15 +111,27 @@ vec4 enhancedTexel = enhancedTriplanar( enhancedColor, enhancedP, enhancedW );
     // It contributes only a broad material mask; all surface detail is scanned.
     vec3 atlasColor = texture2D( enhancedAtlas, vEnhancedAtlasUV ).rgb;
     float atlasLuma = dot( atlasColor, vec3( 0.2126, 0.7152, 0.0722 ) );
-    enhancedRockBlend = max( enhancedRockBlend, 1.0 - smoothstep( 0.18, 0.36, atlasLuma ) );
+    #ifdef ENHANCED_GARDEN
+      float hi = max(atlasColor.r,max(atlasColor.g,atlasColor.b));
+      float lo = min(atlasColor.r,min(atlasColor.g,atlasColor.b));
+      enhancedRockBlend = 1.0-smoothstep(0.12,0.30,(hi-lo)/max(hi,0.001));
+    #else
+      enhancedRockBlend = max( enhancedRockBlend, 1.0 - smoothstep( 0.18, 0.36, atlasLuma ) );
+    #endif
   #endif
-  vec3 enhancedRockP = enhancedDetailCoordinates( vEnhancedMaterialWorld / enhancedRockMeters );
+  #ifdef ENHANCED_GARDEN
+    vec3 enhancedRockP = vEnhancedMaterialWorld / enhancedRockMeters;
+  #else
+    vec3 enhancedRockP = enhancedDetailCoordinates( vEnhancedMaterialWorld / enhancedRockMeters );
+  #endif
   if ( enhancedRockBlend > 0.001 ) {
     vec4 coastalRock = enhancedTriplanar( enhancedRockColor, enhancedRockP, enhancedW );
     coastalRock.rgb = enhancedCoastalRock( coastalRock.rgb );
     enhancedTexel = mix( enhancedTexel, coastalRock, enhancedRockBlend );
   }
-  enhancedWet = ( 1.0 - smoothstep( enhancedWaterLevel + 0.08, enhancedWaterLevel + 1.25, vEnhancedMaterialWorld.y ) ) * ( 1.0 - enhancedRockBlend );
+  #ifndef ENHANCED_GARDEN
+    enhancedWet = ( 1.0 - smoothstep( enhancedWaterLevel + 0.08, enhancedWaterLevel + 1.25, vEnhancedMaterialWorld.y ) ) * ( 1.0 - enhancedRockBlend );
+  #endif
   enhancedTexel.rgb *= mix( 1.0, 0.54, enhancedWet );
 #endif
 // Low-frequency albedo variation interrupts repetition while preserving scans.
@@ -129,7 +141,7 @@ diffuseColor.rgb *= enhancedTexel.rgb * ( 1.0 + enhancedMacro * 0.085 );
 
 const ROUGHNESS = /* glsl */`
 float roughnessFactor = roughness * enhancedTriplanar( enhancedRoughness, enhancedP, enhancedW ).g;
-#ifdef ENHANCED_SAND
+#if defined(ENHANCED_SAND) || defined(ENHANCED_GARDEN)
   if ( enhancedRockBlend > 0.001 ) roughnessFactor = mix( roughnessFactor, roughness * enhancedTriplanar( enhancedRockRoughness, enhancedRockP, enhancedW ).g, enhancedRockBlend );
   roughnessFactor = mix( roughnessFactor, 0.28, enhancedWet * 0.82 );
 #endif
@@ -139,7 +151,7 @@ roughnessFactor = clamp( roughnessFactor, 0.18, 1.0 );
 const NORMAL = /* glsl */`
 vec3 enhancedGradient = enhancedNormalGradient( enhancedNormal, enhancedP, enhancedW );
 float enhancedReliefStrength = enhancedNormalStrength;
-#ifdef ENHANCED_SAND
+#if defined(ENHANCED_SAND) || defined(ENHANCED_GARDEN)
   if ( enhancedRockBlend > 0.001 ) enhancedGradient = mix( enhancedGradient, enhancedNormalGradient( enhancedRockNormal, enhancedRockP, enhancedW ), enhancedRockBlend );
   enhancedReliefStrength = mix( enhancedNormalStrength, 0.65, enhancedRockBlend ) * ( 1.0 - enhancedWet * 0.2 );
 #endif
@@ -180,7 +192,7 @@ export function installEnhancedMaterialShader(material, uniforms, sand = false) 
       .replace('#include <roughnessmap_fragment>', ROUGHNESS)
       .replace('#include <normal_fragment_maps>', NORMAL);
   };
-  material.customProgramCacheKey = () => `gulman-cc0-triplanar-v2-${sand ? 'shore' : 'surface'}-${atlas ? 'atlas' : 'plain'}`;
+  material.customProgramCacheKey = () => `gulman-cc0-triplanar-v3-${material.defines?.ENHANCED_GARDEN ? 'garden' : sand ? 'shore' : 'surface'}-${atlas ? 'atlas' : 'plain'}`;
   return material;
 }
 
@@ -239,12 +251,13 @@ export class EnhancedMaterialLibrary {
   create(source, sourceMapPath = '', options = {}) {
     if (!source || source.alphaTest > 0 || (source.transparent && source.opacity < 1)) return null;
     const path = sourceMapPath || source.map?.image?.currentSrc || source.map?.image?.src || '';
+    if(/(?:^|\/)terrain-ff344f98d7d2\.jpg(?:\?|$)/i.test(path)&&source.map)return this.createKind('grass',{side:source.side,atlas:source.map,garden:true,...options});
     const kind = classifyEnhancedSurface(path);
     if (!kind) return null;
     return this.createKind(kind, { side: source.side, atlas: kind === 'sand' ? source.map : null, ...options });
   }
 
-  createKind(kind, { waterLevel = -1000000, tileMeters, normalStrength, color = 0xffffff, side = THREE.DoubleSide, atlas = null } = {}) {
+  createKind(kind, { waterLevel = -1000000, tileMeters, normalStrength, color = 0xffffff, side = THREE.DoubleSide, atlas = null, garden = false } = {}) {
     if (!this.loaded || this.disposed) return null;
     const set = this.sets.get(kind);
     if (!set) return null;
@@ -256,8 +269,8 @@ export class EnhancedMaterialLibrary {
       enhancedLow: { value: this.quality === 'low' ? 1 : 0 },
       enhancedWaterLevel: { value: Number.isFinite(waterLevel) ? waterLevel : -1000000 },
     };
-    if (kind === 'sand') {
-      const rock = this.sets.get('rock');
+    if (kind === 'sand'||garden) {
+      const rock = this.sets.get(garden?'limestone':'rock');
       uniforms.enhancedRockColor = { value: rock.color };
       uniforms.enhancedRockNormal = { value: rock.normal };
       uniforms.enhancedRockRoughness = { value: rock.roughness };
@@ -272,6 +285,7 @@ export class EnhancedMaterialLibrary {
     material.userData = { graphicsOwned: true, enhancedSurface: kind, sourceAsset: set.asset, enhancedUniforms: uniforms };
     if (['sand', 'rock', 'grass'].includes(kind)) material.defines = { ENHANCED_NATURAL: 1 };
     if (kind === 'rock') material.defines.ENHANCED_ROCK_SURFACE = 1;
+    if (garden) material.defines={...material.defines,ENHANCED_GARDEN:1};
     installEnhancedMaterialShader(material, uniforms, kind === 'sand');
     this.materials.add(material);
     return material;

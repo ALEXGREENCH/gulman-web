@@ -44,6 +44,7 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
   const bones = new Map();
   const rest = new Map();
   const meshes = [];
+  const meshesByBone = new Map();
 
   for (const source of definition.bones) {
     const bone = new THREE.Group();
@@ -71,7 +72,9 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     centered.scale.fromArray(source.meshScale);
     meshPivot.add(centered);
     bones.get(source.id).add(meshPivot);
-    part.traverse(child => { if (child.isMesh) meshes.push(child); });
+    const bodyMeshes = [];
+    part.traverse(child => { if (child.isMesh) { meshes.push(child); bodyMeshes.push(child); } });
+    meshesByBone.set(source.id, bodyMeshes);
   }));
 
   const clips = {};
@@ -105,6 +108,20 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
   bones.get(17).add(weaponSocket);
   let weaponRoot = null;
   group.updateMatrixWorld(true);
+  // Immutable standing-space measurements for optional visual skins. Recording
+  // these before gameplay avoids deriving a new body from a running/dead pose.
+  // The original hierarchy, animation and render geometry are unchanged.
+  const inverseRoot = group.matrixWorld.clone().invert();
+  const skinBasis = { boneMatrices: new Map(), partBounds: new Map(), height: options.height ?? 1.8, name: definition.name };
+  for (const [id, bone] of bones) skinBasis.boneMatrices.set(id, new THREE.Matrix4().multiplyMatrices(inverseRoot, bone.matrixWorld));
+  for (const [id, bodyMeshes] of meshesByBone) {
+    const box = new THREE.Box3();
+    for (const mesh of bodyMeshes) {
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      box.union(mesh.geometry.boundingBox.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverseRoot, mesh.matrixWorld)));
+    }
+    skinBasis.partBounds.set(id, box);
+  }
   const socketAtRest = weaponSocket.getWorldQuaternion(new THREE.Quaternion());
   const weaponOrientation = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
     new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0),
@@ -143,6 +160,9 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
   let disposed = false;
   const targetRotation = new THREE.Quaternion();
   const animatedBounds = new THREE.Box3();
+  const partWorldBounds = new THREE.Box3();
+  const supportPoint = new THREE.Vector3();
+  let visualBoundsMeshes = null;
   const originWorld = new THREE.Vector3();
   const worldScale = new THREE.Vector3();
   function update(dt, state = false, dead = false) {
@@ -170,7 +190,20 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
       // onto the caller's ground height instead of leaving the corpse at the
       // standing hip height. Mesh bounding boxes are cached by Three.js.
       group.updateMatrixWorld(true);
-      animatedBounds.setFromObject(rig);
+      if (visualBoundsMeshes?.length) {
+        animatedBounds.makeEmpty();
+        for (const mesh of visualBoundsMeshes) {
+          if (!mesh.visible || !mesh.geometry) continue;
+          const support = mesh.geometry.userData.enhancedBoundsPoints;
+          if (support) {
+            for (let i = 0; i < support.length; i += 3) animatedBounds.expandByPoint(supportPoint.fromArray(support, i).applyMatrix4(mesh.matrixWorld));
+          } else {
+            if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+            animatedBounds.union(partWorldBounds.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld));
+          }
+        }
+        if (animatedBounds.isEmpty()) animatedBounds.setFromObject(rig);
+      } else animatedBounds.setFromObject(rig);
       group.getWorldPosition(originWorld);
       group.getWorldScale(worldScale);
       const clearance = (animatedBounds.min.y - originWorld.y) / Math.max(worldScale.y, 0.001);
@@ -184,6 +217,8 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     group,
     bones,
     meshes,
+    skinBasis,
+    setVisualBoundsMeshes(value = null) { visualBoundsMeshes = value; },
     height: options.height ?? 1.8,
     weaponSocket,
     attachWeapon,

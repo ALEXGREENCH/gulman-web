@@ -29,6 +29,9 @@ export class CrowdRenderer {
     this._inverseRoot = new THREE.Matrix4();
     this._matrix = new THREE.Matrix4();
     this._reflection = new THREE.Matrix4().makeScale(-1, 1, 1);
+    this._frustum = new THREE.Frustum();
+    this._projection = new THREE.Matrix4();
+    this._actorBounds = new THREE.Sphere(new THREE.Vector3(), 2);
     const groups = new Map();
 
     for (const actor of actors) {
@@ -45,7 +48,7 @@ export class CrowdRenderer {
         const key = [mesh.geometry.uuid, ...materials.map(m => m?.uuid), mirrored ? 'mirror' : 'normal'].join(':');
         let entry = groups.get(key);
         if (!entry) {
-          entry = { geometry: mesh.geometry, material: mesh.material, mirrored, records: [], name: mesh.name };
+          entry = { geometry: mesh.geometry, material: mesh.material, mirrored, records: [], name: mesh.name, graphicsOwned: !!mesh.userData.graphicsOwned, castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow };
           groups.set(key, entry);
         }
         entry.records.push({ actor, mesh });
@@ -90,6 +93,7 @@ export class CrowdRenderer {
       }
       const mesh = new THREE.InstancedMesh(geometry, entry.material, entry.records.length);
       mesh.name = `crowd:${entry.name}`;
+      if(entry.graphicsOwned){mesh.userData.graphicsOwned=true;mesh.castShadow=entry.castShadow;mesh.receiveShadow=entry.receiveShadow;}
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false; // Individual distance culling happens below.
       mesh.count = 0;
@@ -102,6 +106,8 @@ export class CrowdRenderer {
 
   update(cameraPosition) {
     if (this.disposed) return this.stats;
+    const camera=cameraPosition?.isCamera?cameraPosition:null;
+    if(camera){camera.updateMatrixWorld();this._projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);this._frustum.setFromProjectionMatrix(this._projection);cameraPosition=camera.position;}
     const visible = this._visible;
     visible.clear();
     const distanceSq = this.maxDistance * this.maxDistance;
@@ -111,6 +117,7 @@ export class CrowdRenderer {
       // A detached group uses its world-space position directly. pos is the
       // game simulation's authoritative feet location when it is available.
       const position = actor.pos ?? source.position;
+      if(camera){this._actorBounds.center.copy(position);this._actorBounds.center.y+=(actor.char.height||1.8)*.5;if(!this._frustum.intersectsSphere(this._actorBounds))continue;}
       if (cameraPosition) {
         const dx = position.x - cameraPosition.x;
         const dy = position.y - cameraPosition.y;

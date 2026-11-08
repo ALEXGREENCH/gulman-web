@@ -27,6 +27,9 @@ PACK = {
     "brick": "brick_wall_001",
     "grass": "grass_ground",
     "plaster": "plastered_wall",
+    "limestone": "white_sandstone_blocks_02",
+    "marble": "marble_01",
+    "roof": "clay_roof_tiles_02",
 }
 MAPS = {"color": ("Diffuse", 1024), "normal": ("nor_gl", 1024), "roughness": ("Rough", 512)}
 

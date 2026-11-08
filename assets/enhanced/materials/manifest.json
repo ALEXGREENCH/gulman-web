@@ -319,6 +319,141 @@
           "sourceSha256": "844aaa32fda1130262ad8a50084aec7bd5ebce272c8af5e6ba076734beedcd66"
         }
       }
+    },
+    "limestone": {
+      "asset": "white_sandstone_blocks_02",
+      "source": "https://polyhaven.com/a/white_sandstone_blocks_02",
+      "api": "https://api.polyhaven.com/files/white_sandstone_blocks_02",
+      "license": "CC0-1.0",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "tileMeters": 2.0,
+      "maps": {
+        "color": {
+          "path": "assets/enhanced/materials/limestone-color.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 372460,
+          "sha256": "3b034b51c2cfc9b4d785af1d3b004fd1f53ea1914c19a234250844b06bfe1248",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_sandstone_blocks_02/white_sandstone_blocks_02_diff_1k.jpg",
+          "sourceSha256": "0a43c8bc80581408f9c700ad98d2de64280e694148e37626d6648fdddf47a777"
+        },
+        "normal": {
+          "path": "assets/enhanced/materials/limestone-normal.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 349164,
+          "sha256": "0e6f7be65b5a2ea11163a8abc51553774ad7d21b8f44ce0492839f5cd405bc06",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_sandstone_blocks_02/white_sandstone_blocks_02_nor_gl_1k.jpg",
+          "sourceSha256": "14eb23e29a347b97394c65a6f1fe2c7c107da55b18fb95b912c7280c5a43b72d"
+        },
+        "roughness": {
+          "path": "assets/enhanced/materials/limestone-roughness.webp",
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 149280,
+          "sha256": "709d4c6af314c2f7d2d5bb3d395d9a3bb9fca16f9630f825bcab453a421ffe04",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_sandstone_blocks_02/white_sandstone_blocks_02_rough_1k.jpg",
+          "sourceSha256": "f30c3c460130ac867d398cacf8041d86eaa760f134f00c84cc1a30348751d3f5"
+        }
+      }
+    },
+    "marble": {
+      "asset": "marble_01",
+      "source": "https://polyhaven.com/a/marble_01",
+      "api": "https://api.polyhaven.com/files/marble_01",
+      "license": "CC0-1.0",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "tileMeters": 1.5,
+      "maps": {
+        "color": {
+          "path": "assets/enhanced/materials/marble-color.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 110556,
+          "sha256": "49b3b89932254dc703d84f3b2865bfcee7b65ce69192d9846c10582af5021f51",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/marble_01/marble_01_diff_1k.jpg",
+          "sourceSha256": "b10dabea976d68baa976a0d4e8dac58789df8d26a1b50697f320106f1b00a229"
+        },
+        "normal": {
+          "path": "assets/enhanced/materials/marble-normal.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 27320,
+          "sha256": "f1190a7e71ee23e3fa7a290666f541dddbbb639dcda060e6c7eacd1a4c2745a3",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/marble_01/marble_01_nor_gl_1k.jpg",
+          "sourceSha256": "77c2a9b549a6a408659f8197be91945aeb0abc33e697f1dd2ce24ee8dc7c2bc0"
+        },
+        "roughness": {
+          "path": "assets/enhanced/materials/marble-roughness.webp",
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 53418,
+          "sha256": "cd620865329b5e937392151f2b3a31ea88e881924ccbbbe30734862f0916d85b",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/marble_01/marble_01_rough_1k.jpg",
+          "sourceSha256": "a3e9f373d22aebc449af73f6a18c9817e2146f17e567a083609ba8fbb62a72f5"
+        }
+      }
+    },
+    "roof": {
+      "asset": "clay_roof_tiles_02",
+      "source": "https://polyhaven.com/a/clay_roof_tiles_02",
+      "api": "https://api.polyhaven.com/files/clay_roof_tiles_02",
+      "license": "CC0-1.0",
+      "authors": {
+        "Amal Kumar": "All"
+      },
+      "tileMeters": 2.5,
+      "maps": {
+        "color": {
+          "path": "assets/enhanced/materials/roof-color.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 285450,
+          "sha256": "262344c561cb73caecba07225bb9de6bf821214b0aed830b315ae66ff518680e",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/clay_roof_tiles_02/clay_roof_tiles_02_diff_1k.jpg",
+          "sourceSha256": "227a062b38b170e02c27eaa513dae45dc8bc893a62cbd8d0c08e2c32b381fc25"
+        },
+        "normal": {
+          "path": "assets/enhanced/materials/roof-normal.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 417238,
+          "sha256": "3cee1cf554546bd0d189adab1e83261ad6a534b36a30aa1326823fb4536499b4",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/clay_roof_tiles_02/clay_roof_tiles_02_nor_gl_1k.jpg",
+          "sourceSha256": "1548d3ebce335a4590d9e421556c4189a7b63852c793a568c71b9e533f8b62d5"
+        },
+        "roughness": {
+          "path": "assets/enhanced/materials/roof-roughness.webp",
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 80096,
+          "sha256": "80d9e3c491fdec0027afad1e7aa897695bdbc24e33c3fce2ac2c2cb26a99b89d",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/clay_roof_tiles_02/clay_roof_tiles_02_rough_1k.jpg",
+          "sourceSha256": "6d7596c4f3644ac50237381aeadf58f9b68a6dddeb66b6eef4f64462dcbbf82f"
+        }
+      }
     }
   }
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPlayerChoice } from '../js/player-choice.js';
+import { createPlayerChoice, heroForKey } from '../js/player-choice.js';
 
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => {resolve=a;reject=b;}); return {promise,resolve,reject}; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -33,7 +33,7 @@ test('keeps the current player until model and current weapon are ready, preserv
   assert.equal(f.storageData.get('gulman-web-player-v1'),'Dama');
 });
 
-test('rapid F2 then F1 cancels the older load without disposing the active player',async()=>{
+test('rapid Gulmonika then Gulman cancels the older load without disposing the active player',async()=>{
   const rig=deferred();const f=fixture(()=>rig.promise);const old=f.player;const earlier=f.choice.select('Dama');
   assert.equal(await f.choice.select('Gulman'),old);const stale=actor('Dama');rig.resolve(stale);assert.equal(await earlier,null);
   assert.equal(f.player,old);assert.equal(old.disposeCount,0);assert.equal(stale.disposeCount,1);assert.equal(f.choice.value,'Gulman');
@@ -72,4 +72,14 @@ test('menu selection persists and create builds that hero when a scene becomes a
   const recreated=createPlayerChoice(f.setup);assert.equal(recreated.value,'Dama');
   f.setScene({children:new Set(),add(group){this.children.add(group);group.parent=this;}});
   const created=await recreated.create();assert.equal(created.characterName,'Dama');assert.equal(f.player,created);
+});
+
+
+test('hero keys avoid browser functions, shortcuts, repeats and editable fields',()=>{
+  assert.equal(heroForKey({code:'Digit5',key:'5'}),'Gulman');
+  assert.equal(heroForKey({code:'Digit6',key:'6'}),'Dama');
+  for(const code of ['F1','F2','Digit1','Digit4','KeyG'])assert.equal(heroForKey({code}),null);
+  for(const flag of ['ctrlKey','altKey','metaKey','shiftKey','repeat'])assert.equal(heroForKey({code:'Digit6',[flag]:true}),null);
+  assert.equal(heroForKey({code:'Digit6',target:{isContentEditable:true}}),null);
+  assert.equal(heroForKey({code:'Digit5',target:{closest:()=>({tagName:'INPUT'})}}),null);
 });

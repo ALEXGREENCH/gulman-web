@@ -1,0 +1,34 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "date": "2026-11-08",
+  "purpose": "Reconstructed face albedo for the seven Enhanced character skins; not a scan of a real person.",
+  "reference": "Contact sheet of the original seven character atlases; Original mode is unchanged.",
+  "prompt": "Use case: identity-preserve. Asset type: ONE production game FACE ALBEDO TEXTURE ATLAS, horizontal 2048x1024, exactly FOUR equal square columns and TWO equal square rows, no padding, no labels or text. The supplied image is a reference sheet of seven original Gulman 3D character texture atlases; preserve each recognizable face identity, but reconstruct realistic high-resolution human skin detail for new 3D geometry. Produce ONLY the flat face texture regions, no clothing, no portraits, no lighting renders. Cell order reading left to right: top row Gulman (original top-left, mature clean-shaven man, stern brows, pale olive skin), Gulmonika/Dama (original top-second, pale adult woman, blue eyes, neutral lips, no makeup exaggeration), Box (original top-third, mature man with dark moustache and short goatee), Bugay (original top-fourth, broad rugged shaved muscular man). Bottom row Ded (original bottom-left, elderly man, grey brows, wrinkles), BruceLee (original bottom-middle, rugged adult man with dark brows and subtle blue face tattoo at one temple), BoSS (original bottom-right, broad older ginger-haired man's face with ginger moustache), last cell plain matching skin microtexture. Every face is perfectly symmetric frontal orthographic neutral relaxed expression, gaze straight ahead. These are flattened front skin maps: no perspective, no shoulders, no neck, no ears, no hair masses or hair silhouette; forehead skin reaches the TOP edge and temple skin reaches LEFT/RIGHT edges, chin reaches BOTTOM edge. Fill each entire cell with continuous skin, no background around a head. Common facial landmarks within EVERY square: eyes at x=.33 and .67,y=.43; nose base y=.62; closed lips y=.75; chin bottom y=.98. Face only, realistic pores, fine facial hair, natural freckles/wrinkles, soft capillaries, believable asymmetry limited to detail. The geometry supplies the nose/chin volume, so use flat shadow-free cross-polarized diffuse albedo, NO specular highlights or baked cast shadows, NO AO, NO toon or plastic/CG appearance. Human photographic skin detail, neutral warm white balance. No seams/grid lines/watermarks/typography. No original clothing atlas fragments.",
+  "source": {
+    "size": [
+      1774,
+      887
+    ],
+    "sha256": "31970fc124ac82867a9f973fc3761905a6548ad1ccafb3fec0a0077e04fe7980"
+  },
+  "output": {
+    "path": "assets/enhanced/characters/face-color.webp",
+    "size": [
+      2048,
+      1024
+    ],
+    "bytes": 735482,
+    "sha256": "f69f7f7d0e8e101bcab0cea87169133088a398d1fde77473d708fce6efbe28ec",
+    "processing": "Lanczos resize, WebP quality 94"
+  },
+  "cells": [
+    "Gulman",
+    "Dama",
+    "Box",
+    "Bugay",
+    "Ded",
+    "BruceLee",
+    "BoSS",
+    "plain skin"
+  ]
+}

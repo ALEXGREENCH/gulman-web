@@ -234,3 +234,4 @@
 .original-ui .original-ui-frame-content .dialog-actions { gap: 14px; margin-top: 22px; }
 .original-ui .original-ui-frame-content img { max-width: 100%; object-fit: contain; }
 .original-ui .original-toolbar { overflow: visible; padding: 0; }
+.original-ui .recovery-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.original-ui .recovery-toolbar button{font-size:20px}

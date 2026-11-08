@@ -32,7 +32,7 @@ test('world surface classifier excludes atlas facades, water, art and character 
 
 test('all CC0 derivatives have correct checksums, source URLs and bounded download size', async () => {
   let total = 0;
-  assert.equal(Object.keys(manifest.materials).length, 7);
+  assert.equal(Object.keys(manifest.materials).length, 10);
   for (const record of Object.values(manifest.materials)) {
     assert.equal(record.license, 'CC0-1.0');
     assert.ok(record.tileMeters > 0 && record.tileMeters < 10);
@@ -57,7 +57,7 @@ test('library is lazy, creates independent materials, and frees only its owned m
   original.addEventListener('dispose', () => originalDisposals++);
   original.map.addEventListener('dispose', () => originalDisposals++);
   await Promise.all([library.load(), library.load()]);
-  assert.equal(f.textures.length, 21);
+  assert.equal(f.textures.length, 30);
   const material = library.create(original, 'BEACH.JPG', { waterLevel: -4.1 });
   assert.ok(material.isMeshStandardMaterial);
   assert.notEqual(material, original);
@@ -69,6 +69,12 @@ test('library is lazy, creates independent materials, and frees only its owned m
   library.setQuality('low');
   assert.equal(material.userData.enhancedUniforms.enhancedLow.value, 1);
   assert.equal(library.create(original, 'HOUSE.JPG'), null);
+  const garden=library.create(original,'assets/images/terrain-ff344f98d7d2.jpg');
+  assert.equal(garden.defines.ENHANCED_GARDEN,1);
+  assert.equal(garden.userData.enhancedUniforms.enhancedAtlas.value,original.map);
+  assert.equal(garden.userData.enhancedUniforms.enhancedRockColor.value,library.sets.get('limestone').color);
+  assert.notEqual(garden.customProgramCacheKey(),material.customProgramCacheKey());
+  assert.equal(library.create(original,'assets/images/terrain-unrelated.jpg'),null);
   original.alphaTest = 0.35;
   assert.equal(library.create(original, 'BEACH.JPG'), null);
   library.dispose();

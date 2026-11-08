@@ -5,9 +5,9 @@
   <meta name="theme-color" content="#000000">
   <meta name="description" content="Гульмэн 3D: В поисках утраченного искусства. Экспериментальная браузерная версия с оригинальными локациями, персонажами и музыкой.">
   <title>Гульмэн 3D — В поисках утраченного искусства</title>
-  <link rel="stylesheet" href="./style.css?v=20261108-6">
-  <link rel="stylesheet" href="./original-ui.css?v=20261108-6">
-  <link rel="stylesheet" href="./enhanced.css?v=20261108-6">
+  <link rel="stylesheet" href="./style.css?v=20261108-7">
+  <link rel="stylesheet" href="./original-ui.css?v=20261108-7">
+  <link rel="stylesheet" href="./enhanced.css?v=20261108-7">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 </head>
 <body>
@@ -27,7 +27,10 @@
     <div class="mission"><small id="level-label"></small><strong id="objective">Найди артефакт</strong><span id="objective-distance"></span></div>
     <div class="top-actions">
       <button id="camera-switch" type="button" title="Камера (C)" aria-label="Сменить камеру">От 1-го лица</button>
-      <button id="hero-switch" type="button" title="F1 — Гульмэн, F2 — Гульмоника" aria-label="Сменить персонажа">F1 / F2</button>
+      <div class="hero-choices" role="group" aria-label="Выбор героя">
+        <button id="hero-gulman" type="button" title="Гульмэн (5)" aria-label="Выбрать Гульмэна (5)" aria-pressed="true">Гульмэн <kbd>5</kbd></button>
+        <button id="hero-switch" type="button" title="Гульмоника (6)" aria-label="Выбрать Гульмонику (6)" aria-pressed="false">Гульмоника <kbd>6</kbd></button>
+      </div>
       <button id="briefing-open" type="button" title="Брифинг">Брифинг</button>
       <button id="pause-button" type="button" title="Пауза (Esc)" aria-label="Пауза">Ⅱ</button>
     </div>
@@ -43,7 +46,7 @@
       <div class="counter ammo"><img id="ammo-icon" alt="Патроны" width="114" height="102"><span id="ammo-value">120</span></div>
       <div class="weapon"><img id="weapon-icon" alt="Оружие" width="177" height="95"><span id="weapon-name">Пистолет</span><span id="weapon-slots">1 · 2 · 3 · 4</span></div>
     </div>
-    <div class="controls-hint">WASD — движение · E — действие · Shift — бег · Space — прыжок · C — камера · M — карта</div>
+    <div class="controls-hint">WASD — движение · E — действие · Shift — бег · Space — прыжок · 5 / 6 — герой · C — камера · M — карта</div>
     <canvas id="minimap" width="220" height="220" hidden aria-label="Карта уровня"></canvas>
     <div id="damage" aria-hidden="true"></div>
     <div id="touch-controls" aria-label="Сенсорное управление">
@@ -54,6 +57,6 @@
   <div id="toast" role="status"></div>
   <section id="loading" hidden aria-label="Загрузка уровня" aria-live="polite"><div class="loading-content"><h2 id="loading-title">Загрузка уровня</h2><p id="loading-status" role="status">Подготовка игры…</p><div class="indeterminate" aria-hidden="true"></div></div></section>
   <button id="sound-unlock" type="button" hidden>Включить звук</button>
-  <script type="module" src="./js/app.js?v=20261108-6"></script>
+  <script type="module" src="./js/app.js?v=20261108-7"></script>
 </body>
 </html>
