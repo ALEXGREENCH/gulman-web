@@ -128,3 +128,20 @@ test('ADS narrows spread and spring recoil returns to neutral independently of f
   assert.ok(coarse.recoil.pitch < 0.0001);
   assert.ok(Number.isFinite(coarse.spread));
 });
+
+test('an interrupted grenade returns its reserved round without refilling other magazines or resetting cooldown', () => {
+  const combat = controller().reset({ ammo: 30, weapon: 0 });
+  combat.tryFire();
+  const pistol = combat.magazine;
+  combat.setWeapon(2); settle(combat, 1);
+  const shot = combat.tryFire();
+  assert.equal(shot.fired, true);
+  assert.equal(combat.magazine, 0);
+  assert.ok(Math.abs(combat.recoil.pitch) < 1e-6);
+  const cooldown = combat.cooldown;
+  assert.equal(combat.returnGrenade(shot.ammo), 29);
+  assert.equal(combat.magazine, 5);
+  assert.equal(combat.cooldown, cooldown);
+  combat.setWeapon(0);
+  assert.equal(combat.magazine, pistol);
+});

@@ -1056,13 +1056,44 @@
     },
     "handCursor": {
       "originalKey": "textures/hud/рука4!.bmp",
-      "image": "assets/images/4-03d972884a99.png",
-      "url": "assets/images/4-03d972884a99.png",
+      "image": "assets/ui/hand-cursor.png",
+      "url": "assets/ui/hand-cursor.png",
       "size": [
         172,
         165
-      ]
+      ],
+      "originalImage": "assets/images/4-03d972884a99.png",
+      "alphaMode": "original-bmp-bgra",
+      "sourceSha256": "5db55112749286538f589caa03757947eda33859c383cfa47cfc2a006e5991c1",
+      "alphaSha256": "3b1f5acb7e6dfd730452e7934fffff50b647198dcef196f8018f583df86f4992",
+      "transparentPixels": 14945,
+      "translucentPixels": 6272
     }
+  },
+  "cursor": {
+    "image": "assets/ui/hand-cursor.png",
+    "size": [
+      172,
+      165
+    ],
+    "hotspot": [
+      17,
+      10
+    ],
+    "displayWidth": 160,
+    "glow": "assets/images/light-38378c2ccfba.jpg",
+    "glowSize": 72,
+    "source": "Textures/Hud/рука4!.BMP + Textures/Hud/Light.JPG",
+    "sourceRenderSize": [
+      160,
+      160
+    ],
+    "glowSourceRenderSize": [
+      222,
+      222
+    ],
+    "animation": "CSS pulse of original light sprite; no source animation frames exist",
+    "hotspotSource": "Visible index-finger tip in the original bitmap"
   },
   "frames": {
     "default": "assets/images/asset-e765cdabab98.jpg"
@@ -1776,7 +1807,7 @@
     "Level selector contains EVEL1 through EVEL8 only; the ninth level is reached through gameplay.",
     "GameOver raw rectangle extends to y=800; hitRect is clipped to y=768.",
     "Shop command ПАТРОНЫ>3> points to the grenade; ПАТРОНЫ>4> points to the BigGun.",
-    "Hand cursor has both white and black exterior regions; its original bitmap is preserved without an inferred color mask.",
+    "Hand cursor preserves its original 32-bit BMP alpha channel, including its translucent shadow; no color-key mask is inferred.",
     "legacyLicenseLoading is an original license-check illustration, not a status claim of the web runtime.",
     "Comic text images are overlays, not standalone story frames. Pair each nвид image with тn and composite full-frame."
   ]

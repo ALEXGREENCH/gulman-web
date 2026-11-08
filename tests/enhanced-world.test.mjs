@@ -36,7 +36,7 @@ function fixture({ low = false, load } = {}) {
   const source = counted(new THREE.MeshLambertMaterial({ color: 0xd1bf89 }));
   const mesh = new THREE.Mesh(geometry, source);
   mesh.name = 'world:beach'; world.add(mesh); scene.add(world);
-  const data = { materials: { beach: { map: 'assets/images/beach-3aaad64c45d1.jpg', originalMap: 'BEACH.JPG' } }, meshes: [] };
+  const data = { materials: { beach: { map: 'assets/images/fixture-stone.jpg', originalMap: 'STONE.JPG' } }, meshes: [{name:'floor',vertices:[...geometry.attributes.position.array],normals:[...geometry.attributes.normal.array],uv:[...geometry.attributes.uv.array],indices:[...geometry.index.array],groups:[{start:0,count:geometry.index.count,material:'beach'}]}] };
   const layer = new EnhancedWorld({ assets: {}, scene, world, modelData: data, quality: low ? 'low' : 'high' });
   layer.library.dispose();
   layer.library = library(load);
@@ -89,7 +89,8 @@ test('enhanced world preserves borrowed geometry/materials and exact original vi
   assert.equal(f.mesh.visible, false);
   assert.equal(f.layer.group.visible, true);
   const replacement = f.layer.group.getObjectByName('enhanced-surface:beach');
-  assert.equal(replacement.geometry, f.geometry);
+  assert.notEqual(replacement.geometry, f.geometry);
+  assert.equal(replacement.geometry.attributes.position.count, f.geometry.index.count);
   assert.notEqual(replacement.material, f.source);
   f.scene.updateMatrixWorld(true);
   assert.deepEqual(replacement.matrixWorld.elements, f.mesh.matrixWorld.elements);

@@ -85,15 +85,15 @@ test('UV clipping conserves surface area and retains ornament strips without gap
   for(const piece of [...clipped.selected,...clipped.remaining])for(const v of piece){assert.ok(Math.abs(v.p.x-v.rawUV.x*10)<1e-9);assert.ok(Math.abs(v.p.y-v.rawUV.y*10)<1e-9);assert.equal(v.normal.z,1);}
 });
 
-test('Acropolis spawn wall and ground use new PBR surfaces while the atlas bas-reliefs are retained exactly',()=>{
+test('Acropolis spawn wall uses new PBR while terrain remains available to the landscape layer',()=>{
   const result=buildEnhancedArchitecture({modelData:levels[2],levelId:3});result.group.updateMatrixWorld(true);
   const from=new THREE.Vector3(132.86,-19.89,15.71),wall=new THREE.Raycaster(from,new THREE.Vector3(-1,0,0),0,10);
   assert.ok(wall.intersectObject(result.group,true).some(hit=>hit.object.name==='architecture:masonry:limestone'),'spawn wall has actual scanned stone');
-  const floor=new THREE.Raycaster(new THREE.Vector3(132.86,0,15.71),new THREE.Vector3(0,-1,0),0,25);
-  assert.ok(floor.intersectObject(result.group,true).some(hit=>hit.object.name==='architecture:masonry:rock'),'spawn ground uses the rock scan');
+  assert.equal(result.hiddenMaterialNames.has('qwe'),false,'green mountain atlas belongs to the landscape layer');
+  assert.equal(result.hiddenMaterialNames.has('dfghhkl'),false,'rock terrain belongs to the landscape layer');
   const retained=result.retainedMeshes.filter(m=>m.name.endsWith(':retained-relief'));
-  assert.ok(retained.length>=3);
-  const area=meshes=>meshes.reduce((total,mesh)=>total+mesh.groups.filter(g=>['qwe','dfgh','dfghhkl'].includes(g.material)).reduce((sum,g)=>{
+  assert.ok(retained.length>=1);
+  const area=meshes=>meshes.reduce((total,mesh)=>total+mesh.groups.filter(g=>g.material==='dfgh').reduce((sum,g)=>{
     for(let at=g.start;at<g.start+g.count;at+=3){const p=mesh.indices.slice(at,at+3).map(i=>new THREE.Vector3().fromArray(mesh.vertices,i*3).multiplyScalar(.01));sum+=p[1].sub(p[0]).cross(p[2].sub(p[0])).length()/2;}return sum;
   },0),0);
   let replacementArea=0;
@@ -110,7 +110,7 @@ test('all nine levels have finite, instanced architectural upgrades without muta
     const borrowed=new THREE.Mesh(borrowedGeometry,borrowedMaterial);borrowed.name='world:'+Object.keys(data.materials)[0];borrowed.visible=false;world.add(borrowed);
     const result=buildEnhancedArchitecture({modelData:data,world,levelId:i+1});
     assert.equal(hash(data),before,`level ${i+1} raw data changed`);assert.equal(borrowed.visible,false);assert.equal(borrowed.material,borrowedMaterial);assert.equal(borrowed.geometry,borrowedGeometry);
-    assert.ok(result.stats.instances>0,`level ${i+1} is missing new architecture`);assert.ok(result.stats.drawCalls<=8);assert.ok(result.stats.roofTiles<=2400);assert.ok(result.stats.triangles<210000);
+    assert.ok(result.stats.instances>0,`level ${i+1} is missing new architecture`);assert.ok(result.stats.drawCalls<=14);assert.ok(result.stats.roofTiles<=2400);assert.ok(result.stats.triangles<210000);
     assert.ok(Array.isArray(result.retainedMeshes));
     const matrix=new THREE.Matrix4();
     result.group.traverse(object=>{
@@ -126,7 +126,11 @@ test('all nine levels have finite, instanced architectural upgrades without muta
     for(const mesh of result.retainedMeshes)for(const group of mesh.groups){assert.ok(result.hiddenMaterialNames.has(group.material));assert.equal(group.start%3,0);assert.equal(group.count%3,0);}
     const originalHidden=data.meshes.reduce((n,m)=>n+m.groups.filter(g=>result.hiddenMaterialNames.has(g.material)).reduce((k,g)=>k+g.count/3,0),0);
     const retainedTriangles=result.retainedMeshes.reduce((n,m)=>n+m.indices.length/3,0);
-    if(i!==2)assert.equal(originalHidden,retainedTriangles+result.stats.resurfacedTriangles,`level ${i+1} lost source triangles`);
+    if(i!==2){
+      const area=meshes=>meshes.reduce((total,m)=>{for(const g of m.groups||[])if(result.hiddenMaterialNames.has(g.material))for(let at=g.start;at<g.start+g.count;at+=3){const p=m.indices.slice(at,at+3).map(n=>new THREE.Vector3().fromArray(m.vertices,n*3).multiplyScalar(.01));total+=p[1].sub(p[0]).cross(p[2].sub(p[0])).length()/2;}return total;},0);
+      let newArea=0;result.group.traverse(o=>{if(!o.name.startsWith('architecture:masonry:'))return;const p=o.geometry.attributes.position;for(let n=0;n<p.count;n+=3){const a=new THREE.Vector3().fromBufferAttribute(p,n),b=new THREE.Vector3().fromBufferAttribute(p,n+1),c=new THREE.Vector3().fromBufferAttribute(p,n+2);newArea+=b.sub(a).cross(c.sub(a)).length()/2;}});
+      assert.ok(Math.abs(area(data.meshes)-area(result.retainedMeshes)-newArea)<.04,`level ${i+1} lost or duplicated source surface area`);
+    }
     release(result);borrowedGeometry.dispose();borrowedMaterial.dispose();
   }
 });
@@ -152,7 +156,7 @@ test('integrated architecture restores hidden sources and releases new resources
     layer.setEnabled(true);const pending=layer.load();await started;
     const geometries=[...layer.geometries].map(count),instanceMeshes=[];layer.group.traverse(o=>{if(o.isInstancedMesh)instanceMeshes.push(count(o));});
     const retainedMaterials=[...layer.materials].filter(m=>m.map===sourceMap).map(count);
-    assert.ok(retainedMaterials.length>=5,'each shared hidden atlas has a retained material');
+    assert.ok(retainedMaterials.length>=3,'each shared hidden architecture atlas has a retained material');
     assert.deepEqual(world.children.map(o=>o.visible),before,'loading does not prematurely hide original world');
     if(failure){resume();await assert.rejects(pending,/simulated later asset failure/);}
     else {layer.dispose();resume();await pending;}

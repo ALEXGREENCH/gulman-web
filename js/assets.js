@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import {unzipSync} from '../vendor/fflate.js';
-import {mergeWorldMeshes} from './merge-world.js';
+import {unzipSync} from '../vendor/fflate.js?v=20261109-9';
+import {mergeWorldMeshes} from './merge-world.js?v=20261109-9';
 
 export class Assets {
   constructor() { this.manifest=null; this.blobs=new Map(); this.models=new Map(); this.jsons=new Map(); this.textures=new Map(); }
   url(path) { return this.blobs.get(path) || new URL('../'+path,import.meta.url).href; }
   async json(path) {
-    if(!this.jsons.has(path)) this.jsons.set(path,(async()=>{const r=await fetch(this.url(path));if(!r.ok)throw new Error(`${path}: HTTP ${r.status}`);return r.json();})());
+    if(!this.jsons.has(path)) this.jsons.set(path,(async()=>{const r=await fetch(this.url(path),{cache:'no-cache'});if(!r.ok)throw new Error(`${path}: HTTP ${r.status}`);return r.json();})());
     return this.jsons.get(path);
   }
   async init() { this.manifest=await this.json('assets/manifest.json'); return this.manifest; }

@@ -1,11 +1,20 @@
 import * as THREE from 'three';
-import { createEnhancedWeapon, ENHANCED_WEAPON_SPECS } from './enhanced-weapons.js';
+import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js?v=20261109-9';
+import { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-9';
+import { createEnhancedWeapon, ENHANCED_WEAPON_SPECS } from './enhanced-weapons.js?v=20261109-9';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const smooth = (value, target, rate, dt) => value + (target - value) * (1 - Math.exp(-rate * dt));
 const UP = new THREE.Vector3(0, 1, 0);
 const ADS_CLEARANCE = 0.035;
+function throwTransform(time) {
+  const poses = [[0,0,0,0,0,0,0],[.16,-.07,.06,0,-.2,.1,.1],[.34,0,.18,.02,-.65,.12,.20],
+    [.46,-.05,.12,-.22,.35,-.2,-.25],[.64,-.13,-.08,-.23,.6,-.15,-.3],[1.05,0,0,0,0,0,0]];
+  let i=0;while(i<poses.length-2&&time>poses[i+1][0])i++;
+  let t=clamp((time-poses[i][0])/(poses[i+1][0]-poses[i][0]),0,1);t=t*t*(3-2*t);
+  return poses[i].slice(1).map((value,j)=>THREE.MathUtils.lerp(value,poses[i+1][j+1],t));
+}
 
 function flashTexture() {
   const size = 64, pixels = new Uint8Array(size * size * 4);
@@ -105,74 +114,41 @@ export class ProceduralViewmodel {
 
   _makeHands() {
     const rubber = this._material(0x171b1d), fabric = this._material(0x282d2b), cuff = this._material(0x3b4138);
-    const sphere = new THREE.SphereGeometry(1, 12, 8), cylinder = new THREE.CylinderGeometry(0.82, 1, 1, 12), box = new THREE.BoxGeometry(1, 1, 1);
-    for (const geometry of [sphere, cylinder, box]) this._ownedGeometry.add(geometry);
-    const mesh = (parent, geometry, material, position, scale, order = 10010) => {
-      const object = new THREE.Mesh(geometry, material);
-      object.userData.graphicsOwned = true;
-      object.position.set(...position); object.scale.set(...scale); object.renderOrder = order; object.frustumCulled = false;
-      parent.add(object); return object;
-    };
-    const limb = (parent, from, to, radius, material) => {
-      const a = new THREE.Vector3(...from), b = new THREE.Vector3(...to), direction = b.clone().sub(a);
-      const object = mesh(parent, cylinder, material, a.clone().add(b).multiplyScalar(0.5).toArray(), [radius, direction.length(), radius]);
-      object.quaternion.setFromUnitVectors(UP, direction.normalize());
-      return object;
-    };
     const hand = side => {
-      const root = new THREE.Group();
-      root.name = side > 0 ? 'right-gloved-hand' : 'left-gloved-hand';
-      this.mount.add(root);
-      // Soft volumes form a closed glove around the original weapon grip.
-      mesh(root, sphere, fabric, [0, 0, 0], [0.039, 0.031, 0.052]);
-      mesh(root, sphere, rubber, [0, 0.021, -0.006], [0.035, 0.015, 0.043]);
-      for (let finger = 0; finger < 4; finger++) {
-        const z = -0.037 + finger * 0.020;
-        mesh(root, sphere, rubber, [-side * 0.026, 0.015, z], [0.016, 0.015, 0.010]);
-        mesh(root, sphere, fabric, [-side * 0.027, -0.005, z - 0.002], [0.013, 0.022, 0.010]);
-      }
-      const thumb = mesh(root, sphere, fabric, [side * 0.034, 0.005, -0.015], [0.015, 0.022, 0.030]);
-      thumb.rotation.z = side * 0.6;
-      limb(root, [0.006 * side, -0.014, 0.044], [0.095 * side, -0.16, 0.20], 0.039, fabric);
-      limb(root, [0.079 * side, -0.13, 0.17], [0.16 * side, -0.27, 0.29], 0.049, cuff);
-      const strap = mesh(root, box, rubber, [0.011 * side, -0.020, 0.052], [0.082, 0.026, 0.038]);
-      strap.rotation.x = -0.35;
-      mesh(root, box, cuff, [0.023 * side, -0.025, 0.068], [0.023, 0.014, 0.009]);
+      const root = new THREE.Group(); root.name = side > 0 ? 'right-gloved-hand' : 'left-gloved-hand'; this.mount.add(root);
+      const source = humanAnatomy.parts[side > 0 ? 'rightHand' : 'leftHand'];
+      const anatomy = open => {
+        const values = [];
+        for (let i=0;i<source.positions.length;i+=3) {
+          const p = open ? source.positions.slice(i,i+3) : poseAnatomicalHandPoint(source,...source.positions.slice(i,i+3),side>0);
+          values.push(.025*side + p[2]*side*.86, -p[0]*side*.86, .075-p[1]*.86);
+        }
+        const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(values,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(source.uv,2));geometry.setIndex(source.indices);geometry.computeVertexNormals();this._ownedGeometry.add(geometry);return geometry;
+      };
+      const closed=anatomy(false),open=anatomy(true);
+      const palm=new THREE.Mesh(closed,rubber);palm.name='MakeHuman anatomical glove';palm.userData.anatomicalSource='MakeHuman hm08 CC0';root.add(palm);
+      root.userData.closedGeometry=closed;root.userData.openGeometry=open;root.userData.palm=palm;
+      // A continuous cloth sleeve and flat wrist strap, with no spherical joints.
+      const sleeve=new THREE.CylinderGeometry(.035,.047,.31,12,3,true);
+      const direction=new THREE.Vector3(.13*side,-.23,.24),rotation=new THREE.Quaternion().setFromUnitVectors(UP,direction.clone().normalize());
+      sleeve.applyQuaternion(rotation);sleeve.translate(.065*side,-.115,.195);this._ownedGeometry.add(sleeve);
+      const sleeveMesh=new THREE.Mesh(sleeve,fabric);sleeveMesh.name='glove-sleeve';root.add(sleeveMesh);
+      root.userData.sleeve=sleeveMesh;
+      const throwGeometry=new THREE.BufferGeometry(),segments=8,radial=12,indices=[];
+      throwGeometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(((segments+1)*(radial+1)+2)*3),3));
+      const uv=[];for(let ring=0;ring<=segments;ring++)for(let side=0;side<=radial;side++)uv.push(side/radial,ring/segments);uv.push(.5,0,.5,1);throwGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+      for(let ring=0;ring<segments;ring++)for(let side=0;side<radial;side++){const a=ring*(radial+1)+side,b=a+radial+1;indices.push(a,b,a+1,a+1,b,b+1);}
+      const cap=(segments+1)*(radial+1);for(let side=0;side<radial;side++){indices.push(cap,side,side+1);const end=segments*(radial+1)+side;indices.push(cap+1,end+1,end);}
+      throwGeometry.setIndex(indices);this._ownedGeometry.add(throwGeometry);
+      const throwSleeve=new THREE.Mesh(throwGeometry,fabric);throwSleeve.name='camera-anchored-throw-sleeve';throwSleeve.userData.graphicsOwned=true;throwSleeve.visible=false;throwSleeve.frustumCulled=false;throwSleeve.renderOrder=10009;this.group.add(throwSleeve);
+      root.userData.throwSleeve=throwSleeve;root.userData.side=side;
+      const strap=new THREE.BoxGeometry(.071,.026,.033);strap.translate(.025*side,-.017,.070);this._ownedGeometry.add(strap);root.add(new THREE.Mesh(strap,cuff));
+      root.traverse(object=>{if(object.isMesh){object.userData.graphicsOwned=true;object.renderOrder=10010;object.frustumCulled=false;}});
       return root;
     };
-    this.rightHand = hand(1);
-    this.leftHand = hand(-1);
-    this.rightHand.position.set(0.004, -0.034, 0.012);
-    this.rightHand.rotation.set(-0.15, 0, -0.1);
-    this.leftHand.position.set(-0.045, -0.05, -0.015);
-    this.leftHand.rotation.set(-0.15, -0.3, 0.3);
-    // The hands are rigid during the grip, so consolidate all finger/sleeve
-    // detail into three material batches per hand instead of dozens of draws.
-    for (const root of [this.rightHand, this.leftHand]) {
-      const batches = new Map();
-      for (const object of [...root.children]) {
-        object.updateMatrix();
-        const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone();
-        geometry.applyMatrix4(object.matrix);
-        const list = batches.get(object.material) ?? [];
-        list.push(geometry); batches.set(object.material, list); object.removeFromParent();
-      }
-      for (const [material, sources] of batches) {
-        const geometry = new THREE.BufferGeometry();
-        for (const [name, width] of [['position', 3], ['normal', 3], ['uv', 2]]) {
-          const length = sources.reduce((sum, source) => sum + source.attributes[name].array.length, 0), data = new Float32Array(length);
-          let offset = 0;
-          for (const source of sources) { data.set(source.attributes[name].array, offset); offset += source.attributes[name].array.length; }
-          geometry.setAttribute(name, new THREE.BufferAttribute(data, width));
-        }
-        for (const source of sources) source.dispose();
-        this._ownedGeometry.add(geometry);
-        const object = new THREE.Mesh(geometry, material);
-        object.userData.graphicsOwned = true; object.renderOrder = 10010; object.frustumCulled = false;
-        root.add(object);
-      }
-    }
-    for (const geometry of [sphere, cylinder, box]) { geometry.dispose(); this._ownedGeometry.delete(geometry); }
+    this.rightHand=hand(1);this.leftHand=hand(-1);
+    this.rightHand.position.set(.004,-.034,.012);this.rightHand.rotation.set(-.15,0,-.1);
+    this.leftHand.position.set(-.045,-.05,-.015);this.leftHand.rotation.set(-.15,-.3,.3);
   }
 
   _releaseModel() {
@@ -181,14 +157,53 @@ export class ProceduralViewmodel {
     this._model = null;
   }
 
-  async setWeapon(index) {
+  _updateThrowSleeves(throwing) {
+    this.group.updateWorldMatrix(true,true);
+    for(const hand of [this.rightHand,this.leftHand]){
+      const sleeve=hand.userData.throwSleeve,side=hand.userData.side;
+      hand.userData.sleeve.visible=!throwing;sleeve.visible=throwing&&hand.visible;
+      if(!sleeve.visible)continue;
+      // Wrist follows the animated hand; elbow and upper sleeve remain tied
+      // to the off-screen body in camera space. No cut end can float in frame.
+      const start=this.group.worldToLocal(hand.localToWorld(new THREE.Vector3(.025*side,0,.075)));
+      const elbow=new THREE.Vector3(.46*side,-.38,-.40),end=new THREE.Vector3(.62*side,-.65,-.28);
+      const positions=sleeve.geometry.attributes.position,segments=8,radial=12;
+      for(let ring=0;ring<=segments;ring++){
+        const t=ring/segments,one=1-t,center=start.clone().multiplyScalar(one*one).addScaledVector(elbow,2*one*t).addScaledVector(end,t*t);
+        const axis=elbow.clone().sub(start).multiplyScalar(one).addScaledVector(end.clone().sub(elbow),t).normalize();
+        const width=new THREE.Vector3().crossVectors(axis,new THREE.Vector3(0,0,1)).normalize(),depth=new THREE.Vector3().crossVectors(width,axis).normalize();
+        const radius=THREE.MathUtils.lerp(.034,.057,t);
+        for(let side=0;side<=radial;side++){const angle=side/radial*Math.PI*2,p=center.clone().addScaledVector(width,Math.cos(angle)*radius).addScaledVector(depth,Math.sin(angle)*radius);positions.setXYZ(ring*(radial+1)+side,p.x,p.y,p.z);}
+      }
+      const cap=(segments+1)*(radial+1);positions.setXYZ(cap,start.x,start.y,start.z);positions.setXYZ(cap+1,end.x,end.y,end.z);positions.needsUpdate=true;sleeve.geometry.computeVertexNormals();sleeve.geometry.computeBoundingBox();
+    }
+  }
+
+  async _originalGrenade() {
+    if (!this.assets?.model) throw new Error('Original grenade asset loader missing');
+    const model = await this.assets.model('models/weapons/granate.3ds', true), materials = new Set();
+    model.rotation.x = -Math.PI / 2; model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model), size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+    const scale = .13 / Math.max(size.x,size.y,size.z,.001);
+    model.position.sub(center).multiplyScalar(scale); model.scale.multiplyScalar(scale);
+    model.traverse(object=>{if(!object.isMesh)return;object.userData.graphicsOwned=true;object.castShadow=object.receiveShadow=false;object.renderOrder=10005;object.frustumCulled=false;
+      const copy=material=>{const own=material.clone();Object.assign(own,{transparent:true,depthTest:false,depthWrite:false,fog:false,toneMapped:false});own.userData.graphicsOwned=true;materials.add(own);return own;};
+      object.material=Array.isArray(object.material)?object.material.map(copy):copy(object.material);
+    });
+    const group=new THREE.Group();group.name='original-viewmodel-grenade';group.add(model);group.updateMatrixWorld(true);
+    const bounds=new THREE.Box3().setFromObject(group);
+    return {group,bounds,muzzle:bounds.getCenter(new THREE.Vector3()),support:new THREE.Vector3(),update(){},shot(){},dispose(){group.removeFromParent();for(const material of materials)material.dispose();materials.clear();}};
+  }
+
+  async setWeapon(index, {original = false} = {}) {
     if (this._disposed) return false;
     const selected = Number.isInteger(index) && ENHANCED_WEAPON_SPECS[index] ? index : 0;
+    const originalGrenade=Boolean(original&&selected===2);
     const token = ++this._generation;
-    if (!this._disposed && this._weaponRecord && this.weapon === selected) return true;
+    if (!this._disposed && this._weaponRecord && this.weapon === selected && this._originalGrenadeMode===originalGrenade) return true;
     let candidate;
     try {
-      candidate = await this._weaponFactory(selected);
+      candidate = originalGrenade ? await this._originalGrenade() : await this._weaponFactory(selected);
       if (this._disposed || token !== this._generation) { candidate?.dispose(); return false; }
       if (!candidate?.group || !candidate.muzzle || !candidate.bounds) throw new Error('Пустая модель оружия');
       this._releaseModel();
@@ -196,9 +211,10 @@ export class ProceduralViewmodel {
       this._model = candidate.group;
       this.mount.add(candidate.group);
       this.weapon = selected;
+      this._originalGrenadeMode=originalGrenade;
       this._muzzle.copy(candidate.muzzle);
       this._aim.set(-this._muzzle.x, -candidate.bounds.max.y - ADS_CLEARANCE, -0.38);
-      this._hip.set(selected === 2 ? 0.22 : 0.21, Math.min(selected === 2 ? -0.18 : -0.205, -candidate.bounds.max.y - 0.055), selected === 2 ? -0.42 : -0.38);
+      this._hip.set(selected === 2 ? 0.20 : 0.21, Math.min(selected === 2 ? -0.18 : -0.205, -candidate.bounds.max.y - 0.055), selected === 2 ? -0.58 : -0.38);
       this._support.copy(candidate.support);
       this.leftHand.visible = selected !== 2;
       this.leftHand.position.copy(this._support);
@@ -216,13 +232,16 @@ export class ProceduralViewmodel {
   setVisible(visible) { this._visible = Boolean(visible); this.group.visible = this._visible && Boolean(this._model) && !this._disposed; return this; }
 
   update(dt, { speed = 0, sprinting = false, aiming = 0, reloadProgress = 0, reloading = false,
-    recoil = {}, movementX = 0, movementY = 0, grounded = true, landing = 0 } = {}) {
+    recoil = {}, movementX = 0, movementY = 0, grounded = true, landing = 0, grenadeThrow = null } = {}) {
     if (this._disposed) return this;
     const seconds = clamp(finite(dt), 0, 0.25), aimTarget = clamp(Number(aiming) || 0, 0, 1);
+    const throwing=this.weapon===2&&Boolean(grenadeThrow?.active), thrown=throwing&&Boolean(grenadeThrow.released);
+    if(throwing){aiming=0;sprinting=false;reloading=false;}
     this._clock += seconds;
     this._equip *= Math.exp(-seconds * 13);
     this._weaponRecord?.update(seconds, { reloading, reloadProgress });
-    this._aimAmount = smooth(this._aimAmount, sprinting || reloading ? 0 : aimTarget, 18, seconds);
+    this._aimAmount = smooth(this._aimAmount, sprinting || reloading || throwing ? 0 : aimTarget, 18, seconds);
+    if(throwing)this._aimAmount=0;
     this._sprintAmount = smooth(this._sprintAmount, sprinting ? 1 : 0, 13, seconds);
     const walk = clamp(Math.abs(finite(speed)) / 4.3, 0, 1.8) * (grounded ? 1 : 0);
     this._bob = smooth(this._bob, walk, 10, seconds);
@@ -261,7 +280,19 @@ export class ProceduralViewmodel {
     this.leftHand.position.copy(this._support);
     this.leftHand.position.y -= reload * 0.13;
     this.leftHand.position.z += reload * 0.09;
-    this.leftHand.rotation.x = -0.15 + reload * 1.1;
+    this.leftHand.rotation.set(-0.15 + reload * 1.1,-.3,.3);
+    this.leftHand.visible=this.weapon!==2;
+    this.rightHand.userData.palm.geometry=thrown?this.rightHand.userData.openGeometry:this.rightHand.userData.closedGeometry;
+    if(this._model)this._model.visible=!thrown;
+    if(throwing){
+      const [tx,ty,tz,rx,ry,rz]=throwTransform(grenadeThrow.time);
+      this.mount.position.add(new THREE.Vector3(tx,ty,tz));this.mount.rotation.x+=rx;this.mount.rotation.y+=ry;this.mount.rotation.z+=rz;
+      const pull=clamp(grenadeThrow.time/.30,0,1);
+      this.leftHand.visible=grenadeThrow.time<.28-1e-6;
+      this.leftHand.position.set(-.035-pull*.16,.035-pull*.07,-.035+pull*.04);
+      this.leftHand.rotation.set(-.4,-.5,.5);
+    }
+    this._updateThrowSleeves(throwing);
     for (const flash of this._flashes) {
       flash.life = Math.max(0, flash.life - seconds);
       flash.sprite.visible = flash.life > 0;
@@ -286,6 +317,13 @@ export class ProceduralViewmodel {
   muzzleWorldPosition(target = new THREE.Vector3()) {
     this.group.updateWorldMatrix(true, true);
     return this.mount.localToWorld(target.copy(this._muzzle));
+  }
+
+  grenadeReleaseWorldPosition(target = new THREE.Vector3()) {
+    if(this.weapon!==2||!this._weaponRecord)return null;
+    this.group.updateWorldMatrix(true,true);
+    this._weaponRecord.bounds.getCenter(target);
+    return this.mount.localToWorld(target);
   }
 
   dispose() {

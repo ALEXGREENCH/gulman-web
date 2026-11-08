@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EnhancedPostprocessing } from './postprocessing.js?v=20261108-7';
+import { EnhancedPostprocessing } from './postprocessing.js?v=20261109-9';
 
 const STORAGE_KEY = 'gulman-web-graphics-v1';
 const SHARPEN_ID = 'gulman-art-sharpen';
@@ -16,6 +16,10 @@ export const ENHANCED_QUALITY = Object.freeze({
   high: Object.freeze({ shadowSize: 1024, shadowRadius: 30, shadowFPS: 24, detailMaps: true, bloom: true, pixelRatioCap: 1.5, maxPixels: 3000000 }),
   low: Object.freeze({ shadowSize: 512, shadowRadius: 22, shadowFPS: 12, detailMaps: false, bloom: false, pixelRatioCap: 1, maxPixels: 1000000 }),
 });
+
+// Original artwork still needs the source game's object shadows. Keep that
+// baseline single-map pass independent from optional Enhanced PBR/post effects.
+const ORIGINAL_SHADOW_QUALITY = Object.freeze({ shadowSize: 1024, shadowRadius: 24, shadowFPS: 20 });
 
 /** Original/economy stay single-pass; enhanced quality is bounded separately. */
 export function getGraphicsProfile(mode = 'original', deviceRatio = globalThis.devicePixelRatio ?? 1) {
@@ -160,7 +164,7 @@ export function reduceEnvironmentTexture(source, maximumWidth = 1024) {
 }
 
 async function defaultEnvironmentLoader(url) {
-  const { HDRLoader } = await import('../vendor/addons/loaders/HDRLoader.js');
+  const { HDRLoader } = await import('../vendor/addons/loaders/HDRLoader.js?v=20261109-9');
   return new HDRLoader().loadAsync(url);
 }
 
@@ -232,6 +236,10 @@ export class GraphicsManager {
     this._pixelRatio = 1;
     this._lastPosition = new THREE.Vector3();
     this._sunDirection = new THREE.Vector3(0.55, 0.72, 0.34).normalize();
+    this._originalSunDirection = new THREE.Vector3();
+    this._shadowFocus = new THREE.Vector3();
+    this._shadowAnchor = new THREE.Vector3(NaN, NaN, NaN);
+    this._viewDirection = new THREE.Vector3();
     this._rendererSize = new THREE.Vector2();
     this._disposed = false;
     this._applyDocument();
@@ -239,12 +247,14 @@ export class GraphicsManager {
 
   get profile() { return getGraphicsProfile(this.mode); }
   get enhancedLighting() { return this.mode === 'enhanced' && this.lighting; }
+  get shadowsEnabled() { return this.mode === 'original' || this.enhancedLighting; }
+  get shadowQuality() { return this.mode === 'original' ? ORIGINAL_SHADOW_QUALITY : ENHANCED_QUALITY[this._effectiveQuality]; }
   get diagnostics() {
     return {
       mode: this.mode, quality: this.quality, effectiveQuality: this._effectiveQuality,
       pixelRatio: this._pixelRatio, renderScale: this._renderScale,
       estimatedFPS: Math.round(1 / this._averageFrame),
-      shadowSize: this.enhancedLighting ? ENHANCED_QUALITY[this._effectiveQuality].shadowSize : 0,
+      shadowSize: this.shadowsEnabled ? this.shadowQuality.shadowSize : 0,
       pbrMaterials: this._pbrMaterials.size, detailTextures: this._detailMaps.size * 2,
       environment: Boolean(this._environment), postprocessing: this._post?.diagnostics ?? null,
       fallback: this._postFailed,
@@ -557,17 +567,19 @@ export class GraphicsManager {
     if (this.mode === 'enhanced') {
       const convert = material => this._pbrMaterial(material, `${label} ${object.name}`, object);
       object.material = Array.isArray(saved.material) ? saved.material.map(convert) : convert(saved.material);
-      let viewmodel = false;
-      for (let parent = object.parent; parent; parent = parent.parent) if (parent.isCamera) { viewmodel = true; break; }
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      const solid = materials.some(material => material.isMeshStandardMaterial && (!material.transparent || material.alphaTest > 0));
-      object.castShadow = this.enhancedLighting && solid && !viewmodel;
-      object.receiveShadow = this.enhancedLighting && solid && !viewmodel;
     } else {
       object.material = saved.material;
       object.castShadow = saved.castShadow;
       object.receiveShadow = saved.receiveShadow;
     }
+    if (this.shadowsEnabled) {
+      let viewmodel = false;
+      for (let parent = object.parent; parent; parent = parent.parent) if (parent.isCamera) { viewmodel = true; break; }
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      const solid = materials.some(material => (material.isMeshStandardMaterial || material.isMeshLambertMaterial || material.isMeshPhongMaterial) && (!material.transparent || material.alphaTest > 0));
+      object.castShadow = solid && !viewmodel;
+      object.receiveShadow = solid && !viewmodel;
+    } else if (this.mode === 'enhanced') { object.castShadow = false; object.receiveShadow = false; }
   }
 
   _disposeMaterials() {
@@ -608,10 +620,10 @@ export class GraphicsManager {
     renderer.toneMappingExposure = this.mode === 'enhanced' ? 0.9 : original.toneMappingExposure;
     renderer.outputColorSpace = original.outputColorSpace;
     if (renderer.shadowMap) {
-      renderer.shadowMap.enabled = this.enhancedLighting ? true : this.mode === 'potato' ? false : original.shadows;
-      renderer.shadowMap.type = this.enhancedLighting ? THREE.PCFSoftShadowMap : original.shadowType;
-      renderer.shadowMap.autoUpdate = this.enhancedLighting ? false : original.shadowAutoUpdate;
-      if (!this.enhancedLighting) renderer.shadowMap.needsUpdate = original.shadowNeedsUpdate;
+      renderer.shadowMap.enabled = this.shadowsEnabled;
+      renderer.shadowMap.type = this.shadowsEnabled ? THREE.PCFSoftShadowMap : original.shadowType;
+      renderer.shadowMap.autoUpdate = this.shadowsEnabled ? false : original.shadowAutoUpdate;
+      if (!this.shadowsEnabled) renderer.shadowMap.needsUpdate = original.shadowNeedsUpdate;
     }
     for (const texture of this._textures) this._configureTexture(texture);
     return this;
@@ -710,8 +722,14 @@ export class GraphicsManager {
         scene.environment = this._environment.texture;
         scene.environmentIntensity = this._environmentSource ? 0.45 : 0.55;
       }
+    }
+    if (this.shadowsEnabled) {
       this._sun = [...original.lights.keys()].find(light => light.isDirectionalLight) ?? null;
       if (this._sun) {
+        const saved = original.lights.get(this._sun);
+        this._originalSunDirection.copy(saved.position).sub(saved.targetPosition);
+        if (this._originalSunDirection.lengthSq() < 1e-8) this._originalSunDirection.set(.4, .85, .25);
+        this._originalSunDirection.normalize();
         if (!this._sun.target.parent) scene.add(this._sun.target);
         this._sun.castShadow = true;
         this._configureSun();
@@ -723,8 +741,8 @@ export class GraphicsManager {
     if (this.enhancedLighting && player) {
       this._ensureShadow();
       scene.add(this._shadow);
-      this.update((player.group ?? player).position);
     } else if (this._shadow) this._shadow.visible = false;
+    if (this.shadowsEnabled) this.update(player ? (player.group ?? player).position : this._lastPosition);
     return this;
   }
 
@@ -784,7 +802,7 @@ export class GraphicsManager {
 
   _configureSun() {
     if (!this._sun) return;
-    const quality = ENHANCED_QUALITY[this._effectiveQuality];
+    const quality = this.shadowQuality;
     const shadow = this._sun.shadow;
     const borrowed = this._sceneStates.get(this._scene)?.lights.get(this._sun)?.shadow;
     if (shadow.map && shadow.map === borrowed?.map) shadow.map = null;
@@ -799,12 +817,13 @@ export class GraphicsManager {
     camera.right = camera.top = quality.shadowRadius;
     camera.near = 1; camera.far = 190;
     camera.updateProjectionMatrix();
-    shadow.bias = -0.00025;
-    shadow.normalBias = 0.055;
-    shadow.radius = 2;
+    shadow.bias = -0.00012;
+    shadow.normalBias = this.mode === 'original' ? .018 : .025;
+    shadow.radius = 1;
     shadow.autoUpdate = false;
     shadow.needsUpdate = true;
     this._shadowElapsed = 1;
+    this._shadowAnchor.set(NaN, NaN, NaN);
     if (this._renderer?.shadowMap) this._renderer.shadowMap.needsUpdate = true;
   }
 
@@ -890,25 +909,34 @@ export class GraphicsManager {
       for (const map of this._waterMaps) map.offset.set(map.userData.baseOffset.x + this._time * 0.012, map.userData.baseOffset.y + this._time * 0.007);
     }
     if (position && Number.isFinite(position.x + position.y + position.z)) this._lastPosition.copy(position);
-    if (this.enhancedLighting && this._sun) {
-      const quality = ENHANCED_QUALITY[this._effectiveQuality];
+    if (this.shadowsEnabled && this._sun) {
+      const quality = this.shadowQuality;
       this._shadowElapsed += Math.min(0.25, Math.max(0, dt));
-      if (this._shadowElapsed >= 1 / quality.shadowFPS) {
+      this._shadowFocus.copy(this._lastPosition);
+      if (camera?.isCamera) {
+        camera.getWorldDirection(this._viewDirection); this._viewDirection.y = 0;
+        if (this._viewDirection.lengthSq() > .001) this._shadowFocus.addScaledVector(this._viewDirection.normalize(), this.mode === 'original' ? 6 : 8);
+      }
+      this._shadowFocus.y += 2;
+      const relocated = !Number.isFinite(this._shadowAnchor.x) || this._shadowAnchor.distanceToSquared(this._shadowFocus) > 25;
+      if (relocated || this._shadowElapsed >= 1 / quality.shadowFPS) {
         this._shadowElapsed = 0;
         // Snap the focus to world-space texels to reduce crawling at slow speeds.
         const texel = quality.shadowRadius * 2 / quality.shadowSize;
-        const x = Math.round(this._lastPosition.x / texel) * texel;
-        const z = Math.round(this._lastPosition.z / texel) * texel;
-        this._sun.target.position.set(x, this._lastPosition.y, z);
-        this._sun.position.copy(this._sun.target.position).addScaledVector(this._sunDirection, 100);
+        const x = Math.round(this._shadowFocus.x / texel) * texel;
+        const z = Math.round(this._shadowFocus.z / texel) * texel;
+        this._sun.target.position.set(x, this._shadowFocus.y, z);
+        this._sun.position.copy(this._sun.target.position).addScaledVector(this.mode === 'original' ? this._originalSunDirection : this._sunDirection, 100);
+        this._shadowAnchor.copy(this._shadowFocus);
+        this._sun.updateMatrixWorld();
         this._sun.target.updateMatrixWorld();
         this._sun.shadow.needsUpdate = true;
         if (this._renderer?.shadowMap) this._renderer.shadowMap.needsUpdate = true;
       }
     }
     // First-person arms/weapons must never cast a huge camera-attached shadow.
-    if (camera && this.mode === 'enhanced') camera.traverse(object => {
-      if (object.isMesh && !object.userData?.graphicsOwned) { object.castShadow = false; object.receiveShadow = false; }
+    if (camera && this.shadowsEnabled) camera.traverse(object => {
+      if (object.isMesh) { object.castShadow = false; object.receiveShadow = false; }
     });
     const shadow = this._shadow;
     if (!shadow) return;

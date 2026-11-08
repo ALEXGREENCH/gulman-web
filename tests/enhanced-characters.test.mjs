@@ -5,12 +5,17 @@ import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import { Assets } from '../js/assets.js';
 import { createCharacter } from '../js/characters.js';
-import { createEnhancedCharacterSkin, ENHANCED_CHARACTER_STYLES } from '../js/enhanced-characters.js';
+import { createEnhancedCharacterSkin, ENHANCED_CHARACTER_STYLES, poseAnatomicalHandPoint } from '../js/enhanced-characters.js';
+import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js';
 import { createEnhancedCharacterMaterials } from '../js/enhanced-character-materials.js';
 
 const root = new URL('../', import.meta.url), assets = new Assets();
 assets.json = async path => JSON.parse(await readFile(new URL(path, root), 'utf8'));
-assets.texture = async () => new THREE.Texture();
+const sourceTextures = new Map();
+assets.texture = async material => {
+  if (!sourceTextures.has(material.map)) sourceTextures.set(material.map, new THREE.Texture());
+  return sourceTextures.get(material.map);
+};
 await assets.init();
 const names = ['Gulman', 'Dama', 'Box', 'Bugay', 'Ded', 'BruceLee', 'BoSS'];
 const make = name => createCharacter(name, assets.model.bind(assets), assets.json.bind(assets));
@@ -32,17 +37,64 @@ function sourceHash(character) {
   return hash.digest('hex');
 }
 
-test('seven original rigs receive new bounded anatomical geometry and two shared materials without altering their assets', async () => {
+test('firearm pose closes three fingers, keeps a trigger finger and opposes the thumb without moving the wrist', () => {
+  const source = humanAnatomy.parts.rightHand;
+  const pose = point => poseAnatomicalHandPoint(source, ...point, true);
+  assert.deepEqual(pose([0, 0, 0]), [0, 0, 0]);
+  const index = pose(source.landmarks['finger-2-4']);
+  for (const finger of [3, 4, 5]) {
+    const tip = pose(source.landmarks[`finger-${finger}-4`]), base = source.landmarks[`finger-${finger}-1`];
+    assert.ok(Math.abs(tip[1] - base[1]) < .025, `${finger}: fingertip returns toward its knuckle`);
+    assert.ok(tip[2] < (finger === 5 ? -.018 : -.025), `${finger}: fingertip wraps onto the palm side`);
+    assert.ok(index[1] > tip[1] + .025, 'index reaches the trigger ahead of curled fingers');
+  }
+  const thumb = pose(source.landmarks['finger-1-4']);
+  assert.ok(Math.abs(thumb[0]) < .035, 'thumb opposes the grip rather than splaying out');
+});
+
+test('Enhanced grip offset follows replacement weapons, updates the muzzle and restores Original exactly', async () => {
+  const character = await make('Gulman'), materials = createEnhancedCharacterMaterials();
+  const weapon = await assets.model('models/weapons/weaponpistol.3ds', true);
+  const root = character.attachWeapon(weapon), originalRoot = root.getWorldPosition(new THREE.Vector3()), originalMuzzle = character.weaponMuzzlePosition();
+  const skin = createEnhancedCharacterSkin(character, 'Gulman', { materials });
+  const offset = character.getWeaponGripOffset(), current = root.getWorldPosition(new THREE.Vector3());
+  assert.ok(offset.length() > .04 && offset.length() < .09, 'grip fits inside the closed anatomical palm');
+  assert.ok(current.clone().sub(originalRoot).distanceTo(offset) < 1e-6);
+  assert.ok(character.weaponMuzzlePosition().clone().sub(originalMuzzle).distanceTo(offset) < 1e-6);
+  const replacement = character.attachWeapon(await assets.model('models/weapons/weaponpistol.3ds', true));
+  assert.ok(replacement.getWorldPosition(new THREE.Vector3()).distanceTo(current) < 1e-6, 'weapon changes preserve the fit');
+  skin.setEnabled(false);
+  assert.deepEqual(character.getWeaponGripOffset().toArray(), [0, 0, 0]);
+  assert.ok(replacement.getWorldPosition(new THREE.Vector3()).distanceTo(originalRoot) < 1e-6);
+  assert.ok(character.weaponMuzzlePosition().distanceTo(originalMuzzle) < 1e-6, 'Original muzzle is restored too');
+  character.setWeaponGripOffset([.01, .02, -.03]); skin.setEnabled(true); skin.dispose();
+  assert.deepEqual(character.getWeaponGripOffset().toArray(), [.01, .02, -.03], 'custom prior offset is restored on disposal');
+  materials.dispose(); character.dispose();
+});
+
+test('seven rigs preserve original costumes and hair with PBR detail and reconstructed faces', async () => {
   const materials = createEnhancedCharacterMaterials();
   for (const name of names) {
-    const character = await make(name), before = sourceHash(character), skin = createEnhancedCharacterSkin(character, name, { materials });
-    assert.equal(skin.stats.materials, 2, name);
-    assert.equal(skin.stats.meshes, 16, name);
-    assert.ok(skin.stats.triangles > 13000 && skin.stats.triangles <= 27000, `${name}: ${skin.stats.triangles} triangles`);
-    assert.ok(skin.stats.authoredDetails > 90, name);
+    const character = await make(name), before = sourceHash(character), originalFeet = visibleBounds({meshes: character.meshes}).min.y, skin = createEnhancedCharacterSkin(character, name, { materials });
+    assert.ok(skin.stats.materials <= 4, name);
+    assert.ok(skin.stats.meshes <= 19, name);
+    assert.ok(skin.stats.triangles > 4000 && skin.stats.triangles <= 27000, `${name}: ${skin.stats.triangles} triangles`);
+    assert.equal(skin.stats.sourceBodyParts, name === 'BoSS' ? 11 : 12, `${name}: costume, limbs and shoes use the source silhouette`);
+    assert.equal(skin.stats.anatomicalHands, 2, `${name}: real CC0 human topology replaces mitten/capsule hands`);
+    assert.equal(skin.stats.anatomicalHead, true);
+    const head = skin.meshes.find(mesh => mesh.userData.anatomicalSource && mesh.userData.boneId === 2);
+    assert.equal(head.geometry.attributes.position.count / 3, 4000, 'the face uses the imported head topology');
+    assert.equal(head.material, materials.faceMaterial, 'approved face atlas remains on the anatomical head');
+    for (const mesh of skin.meshes.filter(mesh => mesh.userData.anatomicalSource && mesh.userData.boneId !== 2)) {
+      assert.equal(mesh.geometry.attributes.position.count / 3, 3328);
+      assert.equal(mesh.material, materials.material);
+      assert.ok([14, 15].includes(mesh.userData.boneId));
+    }
+    assert.ok(skin.stats.sourceHairParts > 0, `${name}: original hairstyle/hat survives`);
+    assert.ok(skin.meshes.some(mesh => mesh.material === materials.faceMaterial), `${name}: approved new faces survive`);
     assert.ok(character.meshes.every(mesh => !mesh.visible), `${name}: Crowd reads direct mesh visibility`);
     const box = visibleBounds(skin), size = box.getSize(new THREE.Vector3());
-    assert.ok(Math.abs(box.min.y) < .012, `${name}: feet ${box.min.y}`);
+    assert.ok(Math.abs(box.min.y - originalFeet) < 1e-6, `${name}: original feet position ${box.min.y}`);
     assert.ok(box.max.y > 1.65 && box.max.y < 1.95, `${name}: height ${box.max.y}`);
     assert.ok(size.x < 1.0 && size.z < 1.1, `${name}: coherent standing body bounds ${size.toArray()}`);
     for (const mesh of skin.meshes) {
@@ -50,7 +102,7 @@ test('seven original rigs receive new bounded anatomical geometry and two shared
       assert.equal(mesh.userData.graphicsOwned, true);
       assert.ok(mesh.castShadow && mesh.receiveShadow);
       for (const attribute of Object.values(mesh.geometry.attributes)) for (const value of attribute.array) assert.ok(Number.isFinite(value), `${name}: non-finite ${attribute.name}`);
-      for (const value of mesh.geometry.attributes.uv.array) assert.ok(value >= 0 && value <= 1, name);
+      if (!mesh.userData.sourceSilhouette) for (const value of mesh.geometry.attributes.uv.array) assert.ok(value >= 0 && value <= 1, name);
     }
     assert.equal(sourceHash(character), before, `${name}: original data intact`);
     skin.setEnabled(false);
@@ -60,6 +112,34 @@ test('seven original rigs receive new bounded anatomical geometry and two shared
     skin.dispose(); character.dispose();
   }
   assert.equal(Object.keys(ENHANCED_CHARACTER_STYLES).length, 7);
+  materials.dispose();
+});
+
+test('every source body vertex and UV survives unchanged in the standing bone frame', async () => {
+  const materials = createEnhancedCharacterMaterials();
+  for (const name of names) {
+    const character = await make(name), skin = createEnhancedCharacterSkin(character, name, { materials });
+    const ids = new Map([...character.bones].map(([id, bone]) => [bone, id]));
+    const sourceByBone = new Map();
+    for (const source of [...character.meshes].sort((a, b) => a.name.localeCompare(b.name))) {
+      const transform = new THREE.Matrix4(); let parent = source;
+      while (parent && !ids.has(parent)) { parent.updateMatrix(); transform.premultiply(parent.matrix); parent = parent.parent; }
+      const id = ids.get(parent); if ([2, 14, 15, 16].includes(id)) continue;
+      const original = source.geometry.index ? source.geometry.toNonIndexed() : source.geometry.clone(); original.applyMatrix4(transform);
+      const list = sourceByBone.get(id) ?? []; list.push(original); sourceByBone.set(id, list);
+    }
+    for (const [id, originals] of sourceByBone) {
+      const replacement = skin.meshes.find(mesh => mesh.userData.boneId === id && mesh.userData.sourceSilhouette);
+      assert.ok(replacement, `${name}: original part ${id}`);
+      assert.deepEqual([...replacement.geometry.attributes.position.array], originals.flatMap(geometry => [...geometry.attributes.position.array]), `${name}: bone ${id} does not inflate or shrink`);
+      assert.deepEqual([...replacement.geometry.attributes.uv.array], originals.flatMap(geometry => [...geometry.attributes.uv.array]), `${name}: original embroidery/collar/tattoo layout`);
+      assert.equal(replacement.material.normalMap.channel, 1);
+      assert.equal(replacement.material.roughnessMap.channel, 1);
+      assert.ok(replacement.geometry.attributes.uv1, 'micro weave uses independent UVs');
+      for (const original of originals) original.dispose();
+    }
+    skin.dispose(); character.dispose();
+  }
   materials.dispose();
 });
 
@@ -96,7 +176,7 @@ test('same-type actors share prototype geometry, preserve exact source visibilit
   assert.ok(a.meshes.slice(1).every(mesh => mesh.visible));
   assert.ok(left.meshes.every(mesh => !mesh.parent));
   right.dispose();
-  assert.equal(disposed.length, 16);
+  assert.equal(disposed.length, left.meshes.length);
   assert.equal(materialDisposals, 0, 'supplied material library belongs to its caller');
   materials.dispose(); a.dispose(); b.dispose();
 });

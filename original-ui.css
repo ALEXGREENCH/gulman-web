@@ -1,4 +1,5 @@
-/* Original Gulman bitmap menus: an intact 1024 × 768 scene, with letterboxing. */
+/* Original art remains complete and undistorted. Its own blurred backdrop fills
+   widescreen margins without stretching the bitmap or moving painted buttons. */
 #menu.original-ui {
   position: fixed;
   inset: 0;
@@ -26,6 +27,17 @@
   background: #000;
   overflow: hidden;
   isolation: isolate;
+  z-index: 1;
+}
+.original-ui .original-ui-ambient {
+  position: absolute;
+  inset: -36px;
+  z-index: 0;
+  background-position: center;
+  background-size: cover;
+  filter: blur(28px) brightness(.62) saturate(.82);
+  pointer-events: none;
+  user-select: none;
 }
 .original-ui .original-ui-background {
   position: absolute;
@@ -33,7 +45,7 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: fill;
+  object-fit: contain;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
@@ -235,3 +247,101 @@
 .original-ui .original-ui-frame-content img { max-width: 100%; object-fit: contain; }
 .original-ui .original-toolbar { overflow: visible; padding: 0; }
 .original-ui .recovery-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.original-ui .recovery-toolbar button{font-size:20px}
+
+/* Гульмаг: prices belong to the painted objects and the two original terminals.
+   Keep the merchant, his face, hand and flame clear of a floating stock panel. */
+.original-ui .original-shop-controls { position:absolute; inset:0; pointer-events:none; }
+.original-ui .original-shop-controls button { pointer-events:auto; }
+.original-ui .original-shop-offer {
+  display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:auto auto;
+  align-content:center; column-gap:12px; row-gap:2px; box-sizing:border-box;
+  padding:7px 12px; margin:0; border:1px solid #80521e; border-radius:2px;
+  background:linear-gradient(#f2dba3,#d8b675); color:#2c1a0d;
+  box-shadow:0 2px 4px #170b0877,inset 0 1px #fff2c8;
+  text-align:left; text-shadow:none; line-height:1.1;
+}
+.original-ui .original-shop-offer:hover { background:linear-gradient(#ffedbc,#ecc987); color:#2c1a0d; }
+.original-ui .original-shop-name { grid-column:1; grid-row:1; color:#2c1a0d; font:bold 25px/1.1 Georgia,'Times New Roman',serif; }
+.original-ui .original-shop-detail { grid-column:1; grid-row:2; color:#4b311a; font:17px/1.15 Georgia,'Times New Roman',serif; }
+.original-ui .original-shop-price { grid-column:2; grid-row:1 / span 2; align-self:center; color:#5c2d11; font:bold 27px/1 Georgia,'Times New Roman',serif; font-variant-numeric:tabular-nums; }
+.original-ui .original-shop-offer[data-shop-item='health'] { padding:6px 10px; column-gap:7px; }
+.original-ui .original-shop-offer[data-shop-item='health'] .original-shop-name { font-size:22px; }
+.original-ui .original-shop-offer[data-shop-item='health'] .original-shop-detail { font-size:15px; }
+.original-ui .original-shop-offer:disabled { opacity:1; filter:saturate(.3); background:#c7c2a8; color:#494736; cursor:default; box-shadow:inset 0 1px #e6e1c8; }
+.original-ui .original-shop-offer:disabled .original-shop-name,
+.original-ui .original-shop-offer:disabled .original-shop-detail,
+.original-ui .original-shop-offer:disabled .original-shop-price { color:#494736; }
+.original-ui .original-shop-balance { display:flex; align-items:center; justify-content:space-between; box-sizing:border-box; padding:0 12px; margin:0; color:#142a21; font:22px/1.1 Georgia,'Times New Roman',serif; text-shadow:0 1px #e5efba; }
+.original-ui .original-shop-balance strong { color:inherit; font-size:26px; font-variant-numeric:tabular-nums; }
+.original-ui .original-shop-return,
+.original-ui .original-shop-return:hover { padding:0; border:0; background:transparent; color:#183128; font:bold 32px/1 Georgia,'Times New Roman',serif; box-shadow:none; text-shadow:0 1px #d6f5b9; }
+.original-ui .original-shop-return:hover { color:#06291e; text-shadow:0 0 9px #f7ffd8; }
+.original-ui .original-shop-message { box-sizing:border-box; display:flex; align-items:center; justify-content:center; margin:0; padding:5px 10px; color:#fff1c4; background:#38200de8; font:19px/1.2 Georgia,'Times New Roman',serif; text-align:center; text-shadow:none; }
+.original-ui .original-shop-message:empty { visibility:hidden; }
+#menu.original-ui.original-shop-stacked .original-ui-stage { top:var(--shop-art-top); transform:translateX(-50%) scale(var(--original-ui-scale)); transform-origin:top center; }
+#menu.original-ui.original-shop-stacked .original-shop-controls {
+  position:absolute; inset:auto; top:var(--shop-controls-top); left:50%; transform:translateX(-50%);
+  width:min(100%,600px); height:270px; box-sizing:border-box; z-index:2;
+  display:grid; grid-template-columns:1fr 1fr; grid-template-rows:30px 68px 56px 44px 30px; gap:6px; padding:8px 12px;
+}
+#menu.original-ui.original-shop-stacked .original-shop-controls>* { position:static!important; inset:auto!important; width:auto!important; height:auto!important; min-width:0; }
+#menu.original-ui.original-shop-stacked .original-shop-balance { grid-column:1 / -1; grid-row:1; color:#fff0bf; text-shadow:0 1px 3px #24160c; padding:0 4px; font-size:20px; }
+#menu.original-ui.original-shop-stacked [data-shop-item='biggun'] { grid-column:1; grid-row:2; }
+#menu.original-ui.original-shop-stacked [data-shop-item='grenades'] { grid-column:2; grid-row:2; }
+#menu.original-ui.original-shop-stacked [data-shop-item='health'] { grid-column:1 / -1; grid-row:3; }
+#menu.original-ui.original-shop-stacked .original-shop-offer { padding:7px 9px; column-gap:6px; }
+#menu.original-ui.original-shop-stacked .original-shop-name { font-size:20px; }
+#menu.original-ui.original-shop-stacked .original-shop-detail { font-size:14px; }
+#menu.original-ui.original-shop-stacked .original-shop-price { font-size:23px; }
+#menu.original-ui.original-shop-stacked .original-shop-return { grid-column:1 / -1; grid-row:4; border:1px solid #a99055; background:#19291be8; color:#f0e0a4; font-size:25px; text-shadow:none; }
+#menu.original-ui.original-shop-stacked .original-shop-message { grid-column:1 / -1; grid-row:5; padding:3px 6px; font-size:15px; }
+
+/* DOM cursor is not limited by native CSS cursor image-size caps. It never
+   intercepts clicks; the genuine fingertip is exactly at the pointer position. */
+#menu.original-ui .original-menu-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  pointer-events: none;
+  transform-origin: 0 0;
+  user-select: none;
+  will-change: transform;
+}
+#menu.original-ui .original-menu-cursor[hidden] { display:none; }
+#menu.original-ui .original-menu-cursor img {
+  position: absolute;
+  display: block;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+  filter: none;
+  -webkit-user-drag: none;
+}
+#menu.original-ui .original-menu-cursor-hand { inset:0; width:100%; height:100%; }
+#menu.original-ui .original-menu-cursor-glow {
+  mix-blend-mode: screen;
+  mask-mode: luminance;
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  opacity: .85;
+  animation: gulman-fingertip-glow 1.7s ease-in-out infinite alternate;
+}
+#menu.original-ui .original-menu-cursor.is-action .original-menu-cursor-glow { animation-duration:.8s; }
+#menu.original-ui .original-menu-cursor.is-pressed .original-menu-cursor-glow { opacity:1; }
+@keyframes gulman-fingertip-glow {
+  from { transform:scale(.86) rotate(-7deg); opacity:.72; }
+  to { transform:scale(1.08) rotate(8deg); opacity:1; }
+}
+@media (any-hover:hover) and (any-pointer:fine) {
+  #menu.original-ui.has-original-cursor,
+  #menu.original-ui.has-original-cursor * { cursor:none!important; }
+}
+@media (prefers-reduced-motion:reduce) {
+  #menu.original-ui .original-menu-cursor-glow { animation:none; }
+}
+@media (hover:none) and (pointer:coarse) {
+  #menu.original-ui .original-menu-cursor { display:none; }
+}

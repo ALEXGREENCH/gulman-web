@@ -5,8 +5,8 @@ optional resources loaded only by Enhanced mode.
 
 ## Scanned PBR materials
 
-Downloaded on 2026-11-08 through the official [Poly Haven public API](https://api.polyhaven.com/).
-All ten environment materials are [CC0 1.0](https://polyhaven.com/license), including permission
+Downloaded on 2026-11-08–09 through the official [Poly Haven public API](https://api.polyhaven.com/).
+All twelve environment materials are [CC0 1.0](https://polyhaven.com/license), including permission
 to redistribute them in this application. The material authors are credited below.
 
 | In-game material | Source | Authors |
@@ -21,6 +21,8 @@ to redistribute them in this application. The material authors are credited belo
 | Pale architectural stone (`limestone` material key) | [White Sandstone Blocks 02](https://polyhaven.com/a/white_sandstone_blocks_02) | Rob Tuytel |
 | Marble | [Marble 01](https://polyhaven.com/a/marble_01) | Rob Tuytel |
 | Terracotta roofing | [Clay Roof Tiles 02](https://polyhaven.com/a/clay_roof_tiles_02) | Amal Kumar |
+| Fractured mountain rock (`cliff`) | [Rock Face 04](https://polyhaven.com/a/rock_face_04) | Dimitrios Savva |
+| Cobblestone ground and embankments | [Cobblestone 01](https://polyhaven.com/a/cobblestone_01) | Rob Tuytel |
 
 The shipped derivatives use 1024-pixel color and OpenGL normal maps, plus
 512-pixel roughness maps. The original maps were downloaded as 1K JPEG; source
@@ -31,20 +33,30 @@ roughness map is invented from the old game's diffuse texture.
 
 `materials/manifest.json` records every direct source URL, author, real-world
 tile size, source SHA-256, shipped SHA-256, dimensions and byte size. The total
-texture download is approximately 7.63 MiB. `scripts/fetch_enhanced_assets.py`
+texture download is approximately 9.27 MiB. `scripts/fetch_enhanced_assets.py`
 rebuilds the pack using Python and Pillow.
 
 The triplanar shader and wet-sand/slope blending are new project code, under the
-project's code license. They preserve the original collision geometry. Facade
-atlases, signs, paintings, menu art, character textures and foliage cards are
-deliberately excluded from the material classifier.
+project's code license. They preserve the original collision geometry. The
+generic material classifier excludes atlas facades and mixed terrain. Separate
+architecture and landscape layers select known source UV regions: blank walls,
+roofs and ground receive scans, while historic inscriptions, paintings,
+ornament artwork is retained; landscape stairs and platforms use separately clipped limestone. Terrain atlases locate grass, rock,
+roads and paths; their blurry color pixels are not used as the new surface
+detail. Menu artwork and the existing Enhanced character faces are unchanged.
 
 The beach atlas is borrowed only as a broad mask distinguishing its original
 sand and rock regions; its pixels are not used as the new detailed surface color.
 Continuous coordinate warping reduces visible tiling without adding extra PBR
-texture samples. The optional terrain subdivision creates a separate visual
-mesh: every original triangle boundary is fixed, with displacement bounded to
-8 mm on sand and 10 cm on steep rock. The original mesh remains the collider.
+texture samples. `enhanced-landscape.js` creates separate terrain geometry on
+all nine maps, bounded to 28,000 triangles in High and 7,000 in Low. Outer and
+UV-clipped edges are pinned; subdivision and welded normals keep internal
+edges continuous. Relief is bounded to 18 mm on level ground and 45 cm on
+steep mountains; plazas remain undisplaced. The original mesh remains the
+collider. The earlier beach-only helper remains available for independent use.
+TX3 stair strips and its central archaeological floor island are UV-clipped
+into a separate limestone surface; rocky slopes use the cliff scan. Their exact
+source positions and collision geometry remain unchanged.
 
 ## Shared character material atlas
 
@@ -81,3 +93,43 @@ anatomy, clothing, hair and architectural geometry are authored in the JS source
 The Taj Mahal garden retains its original UV layout as a broad grass/path mask.
 Fine grass and limestone paving use the CC0 scans at physical scale, so the
 paths remain in their original places without stretching the old painted ground.
+
+## Imported human anatomy
+
+The anatomical hand meshes come from the official MakeHuman Community
+[hm08 base mesh](https://github.com/makehumancommunity/makehuman/blob/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/makehuman/data/3dobjs/base.obj),
+pinned to commit `a8bc2d54ff0ac92e78ff71431b1023eda42bf482`. The asset's own
+header explicitly releases it under CC0. The project's
+[asset license](https://github.com/makehumancommunity/makehuman/blob/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/LICENSE.ASSETS.md)
+covers the base mesh independently of the MakeHuman application's source code.
+Credited authors: Data Collection AB, Joel Palmius, Jonas Hauquier and the
+MakeHuman Community. No MakeHuman application code is bundled.
+
+`scripts/fetch_human_anatomy.py` selects only the body mesh's two hands,
+including 23.8 mm of wrist for an overlap beneath a costume cuff. Helper joint
+meshes and all other body geometry are excluded. The five-finger topology and
+UVs are retained, source normals are calculated, quads are triangulated, and
+coordinates are transformed into wrist-local metres for a 1.8 m reference
+person. The derivative contains 1,909 vertices and 3,328 triangles per hand;
+the shared ES module is approximately 364 KiB.
+
+`characters/human-anatomy-manifest.json` records the pinned URL, original and
+derivative SHA-256s, processing and bounds. `characters/MAKEHUMAN-CC0.md` ships
+the exact license. Anatomical hands attach beneath the original costume cuffs;
+the approved generated character faces and the original game's character
+texture files are preserved.
+
+The anatomical head in `characters/human-head.js` comes from the same pinned
+CC0 body topology. It retains ears, eyelids, nose and lips, while omitting all
+helper meshes and cutting only 5.4 mm below the neck joint to avoid shoulder
+fragments. The face surface is closed; its only open boundary is the neck.
+The approved face atlas is projected onto this geometry using the source eye,
+nose, lip and chin landmarks. The source character's costume is retained.
+
+The head derivative contains 2,156 vertices / 4,000 triangles and is 209 KiB.
+Offline meshoptimizer 1.3.0 simplification preserves normals and the neck
+boundary; reported geometric error is 0.43 mm. No simplification library runs
+in the browser. The pinned source and shipped SHA-256s, bounds and build steps
+are recorded in `characters/human-head-manifest.json`; rebuild with
+`scripts/fetch_human_anatomy.py --head-only` followed by
+`scripts/optimize_human_head.mjs` with a local meshoptimizer module path.

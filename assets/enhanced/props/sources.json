@@ -1,0 +1,286 @@
+[
+  {
+    "asset": "wooden_crate_01",
+    "kind": "crate",
+    "source": "https://polyhaven.com/a/wooden_crate_01",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "sourceFiles": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wooden_crate_01/wooden_crate_01_1k.gltf",
+        "md5": "33df4d2ae00186d4b64e878466c9e22e",
+        "sha256": "fd9c6073acfc671e12b64666053f2805ae33aff5d3dbbcfe5c97c08c06644927",
+        "bytes": 5612
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_crate_01/wooden_crate_01_diff_1k.jpg",
+        "md5": "266e0462d06e77c5745f66e89820544f",
+        "sha256": "16653f4abaf4c1d9bca94bde3bd8c54d0ea9a5298d1648abcf57de1f7ecc34cc",
+        "bytes": 711292
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_crate_01/wooden_crate_01_nor_gl_1k.jpg",
+        "md5": "e31626a1fcf6f7062c2ffd9fc982b942",
+        "sha256": "f4ea44c7dc1686123d337039cb713d74e8a2dbc6d1bd2beeac276d06f5df3fab",
+        "bytes": 594076
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/wooden_crate_01/wooden_crate_01.bin",
+        "md5": "8318f76b0c24b5538ce23051dbcb79a0",
+        "sha256": "85f381f8035f7a6f2f3b848640894c6d3333b261946dd8a338c0fe19e0bea21e",
+        "bytes": 189408
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/wooden_crate_01/wooden_crate_01_arm_1k.jpg",
+        "md5": "67c4aeb1154af98f95516b21ef62291c",
+        "sha256": "cd0b031c3924905e16ffd78ead062c2cc274148c4104d09635310097738b4679",
+        "bytes": 776699
+      }
+    ],
+    "files": [
+      {
+        "path": "assets/enhanced/props/wooden_crate_01/distance-lod.bin",
+        "bytes": 9696,
+        "sha256": "84fbaed40976602d6a3341729d25c28b9ff38a8d2da431d1d4a280455986a3d6"
+      },
+      {
+        "path": "assets/enhanced/props/wooden_crate_01/textures/wooden_crate_01_arm_1k.webp",
+        "bytes": 163384,
+        "sha256": "d826af6cc2518ddd701d751e235a02fc31dcc8281fee664bc216d9f932c0935c"
+      },
+      {
+        "path": "assets/enhanced/props/wooden_crate_01/textures/wooden_crate_01_diff_1k.webp",
+        "bytes": 170988,
+        "sha256": "affc9dc513823517363e604f5e301b358d6b5ec6fed73dc5b0b286b3c9b49258"
+      },
+      {
+        "path": "assets/enhanced/props/wooden_crate_01/textures/wooden_crate_01_nor_gl_1k.webp",
+        "bytes": 162968,
+        "sha256": "361d4e096142219ff98d3751b3ec7026681e0ab5b3635f0183bce38b16164e84"
+      },
+      {
+        "path": "assets/enhanced/props/wooden_crate_01/wooden_crate_01.bin",
+        "bytes": 189408,
+        "sha256": "85f381f8035f7a6f2f3b848640894c6d3333b261946dd8a338c0fe19e0bea21e"
+      },
+      {
+        "path": "assets/enhanced/props/wooden_crate_01/wooden_crate_01.gltf",
+        "bytes": 4453,
+        "sha256": "77c9ecd4c175e53f2c9644ea6642c5c6414dc3ad82f90dfeab616dbab32dbab2"
+      }
+    ]
+  },
+  {
+    "asset": "barrel_03",
+    "kind": "barrel",
+    "source": "https://polyhaven.com/a/barrel_03",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "sourceFiles": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/barrel_03/barrel_03_1k.gltf",
+        "md5": "204eec2159a38a1dc4b826ef255f9468",
+        "sha256": "80e2faf48b7423bb522b573e459d99c5656a16763285ec8268e957fc7d41f9b8",
+        "bytes": 2638
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/barrel_03/barrel_03_diff_1k.jpg",
+        "md5": "6e77dc1af60c48787fd80dbbcf125040",
+        "sha256": "62feb27dfa9a0daf3f323fdc1ddc2d8e4a5996cf2c72fe50197b55c2b9cba7f3",
+        "bytes": 149997
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/barrel_03/barrel_03.bin",
+        "md5": "6993587e3ef8e0603334e615ab292288",
+        "sha256": "10f3202e9ac9acf8dd896f1562c64db58311ffef89efb402d8433e03ad486427",
+        "bytes": 44872
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/barrel_03/barrel_03_nor_gl_1k.jpg",
+        "md5": "fd181365eb7397d55773987d145f0420",
+        "sha256": "ade97c52985047858a4f38226a9b8a888e3a766ba0434700b4618fb25424c4b6",
+        "bytes": 126707
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/barrel_03/barrel_03_arm_1k.jpg",
+        "md5": "3520338e30b4d257745db34848098688",
+        "sha256": "2cec2338b36d7322bef55e6a1d0884b223c5ed383cf986a58bfa461478c64c7e",
+        "bytes": 249922
+      }
+    ],
+    "files": [
+      {
+        "path": "assets/enhanced/props/barrel_03/barrel_03.bin",
+        "bytes": 44872,
+        "sha256": "10f3202e9ac9acf8dd896f1562c64db58311ffef89efb402d8433e03ad486427"
+      },
+      {
+        "path": "assets/enhanced/props/barrel_03/barrel_03.gltf",
+        "bytes": 2098,
+        "sha256": "db61b781ac3d1c1edb9086b9b1f45e2db0b30245f9afdff3cc418a1870841bee"
+      },
+      {
+        "path": "assets/enhanced/props/barrel_03/distance-lod.bin",
+        "bytes": 2100,
+        "sha256": "9424fcfb6ffbcfca8d57ce5af235d7e6a2e0e670f9a564e56b5bfd26538a15d2"
+      },
+      {
+        "path": "assets/enhanced/props/barrel_03/textures/barrel_03_arm_1k.webp",
+        "bytes": 203354,
+        "sha256": "0f7f1a71d556a92a83a21039fbdf66481f0ffb6c12287ae22385cf5d623b0a5f"
+      },
+      {
+        "path": "assets/enhanced/props/barrel_03/textures/barrel_03_diff_1k.webp",
+        "bytes": 103316,
+        "sha256": "9fd309f5e5ca7b6366a2382ab50016b5b3043f7354870d244d789d9c271c09ba"
+      },
+      {
+        "path": "assets/enhanced/props/barrel_03/textures/barrel_03_nor_gl_1k.webp",
+        "bytes": 133180,
+        "sha256": "e3b7a7208089a92da0c664415891b64abe8bbfcd78d0a6edae886a1a4476fa07"
+      }
+    ]
+  },
+  {
+    "asset": "round_wooden_table_01",
+    "kind": "table",
+    "source": "https://polyhaven.com/a/round_wooden_table_01",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "sourceFiles": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/round_wooden_table_01/round_wooden_table_01_1k.gltf",
+        "md5": "9a2ad4a55a88ee7493a842026d944abc",
+        "sha256": "dd09c1663b10d15a1fda12ba4f53743e8b8379b17254a78be22100d584738b48",
+        "bytes": 4089
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/round_wooden_table_01/round_wooden_table_01_nor_gl_1k.jpg",
+        "md5": "3d0f124a495db5eeca16db53c188729d",
+        "sha256": "5f80ed76e2eccaea8ab7c0cc9c85d29cc9b164aabfa2403304e1ec79dc47150c",
+        "bytes": 50832
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/round_wooden_table_01/round_wooden_table_01_arm_1k.jpg",
+        "md5": "2dc3f86e564b407141c6c216760d8bb6",
+        "sha256": "32b5056dc36e3081987c20cd03f15e73298266c1aff3e573b832e9dd0f8145b9",
+        "bytes": 134854
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/round_wooden_table_01/round_wooden_table_01_diff_1k.jpg",
+        "md5": "4be9c5bc6b73f42541fb461c19169c56",
+        "sha256": "d83659d8d584bbadf160760b825f990c6264901e33051643d19fcd389b0d19ae",
+        "bytes": 117911
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/round_wooden_table_01/round_wooden_table_01.bin",
+        "md5": "b907851fab9d7552cef8a12858acc869",
+        "sha256": "c2635368bc86239a73fafdd8bce20b4261155ce7241e95e809a753ed4693f157",
+        "bytes": 242688
+      }
+    ],
+    "files": [
+      {
+        "path": "assets/enhanced/props/round_wooden_table_01/distance-lod.bin",
+        "bytes": 12600,
+        "sha256": "f2ddf6d9cac5209acdb8d754ed6c083c3660bbbc13ae531eba0df575298630b6"
+      },
+      {
+        "path": "assets/enhanced/props/round_wooden_table_01/round_wooden_table_01.bin",
+        "bytes": 242688,
+        "sha256": "c2635368bc86239a73fafdd8bce20b4261155ce7241e95e809a753ed4693f157"
+      },
+      {
+        "path": "assets/enhanced/props/round_wooden_table_01/round_wooden_table_01.gltf",
+        "bytes": 3309,
+        "sha256": "25cab65115424b8b3799a1fc10c2d2e5045f0ded922bf3618697f20d4b55e2d2"
+      },
+      {
+        "path": "assets/enhanced/props/round_wooden_table_01/textures/round_wooden_table_01_arm_1k.webp",
+        "bytes": 75384,
+        "sha256": "828141f3650e32f82f722aeb16b2b850dd4abe165204ff3df621588cb86efe0a"
+      },
+      {
+        "path": "assets/enhanced/props/round_wooden_table_01/textures/round_wooden_table_01_diff_1k.webp",
+        "bytes": 74338,
+        "sha256": "bce32dae6fc3cad0f82024b1cc2468a80d43aa1a0037d4ea6989a977dc61ee9f"
+      },
+      {
+        "path": "assets/enhanced/props/round_wooden_table_01/textures/round_wooden_table_01_nor_gl_1k.webp",
+        "bytes": 43042,
+        "sha256": "78cfa5f9005ac2ef7cc0ed4ba4e2c318ebf4b11247b134dffe4caabeae9e93a5"
+      }
+    ]
+  },
+  {
+    "asset": "plastic_monobloc_chair_01",
+    "kind": "chair",
+    "source": "https://polyhaven.com/a/plastic_monobloc_chair_01",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "sourceFiles": [
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/plastic_monobloc_chair_01/plastic_monobloc_chair_01_1k.gltf",
+        "md5": "b0ac94e52b406e1815af47d9d84eadb4",
+        "sha256": "899bf148139ab8d1718c25ec06112a652631f9476b5aaeeacb9eb1da9b7f1d3a",
+        "bytes": 2892
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/plastic_monobloc_chair_01/plastic_monobloc_chair_01.bin",
+        "md5": "cff97136a9c4bb57c62937cbb7d33a79",
+        "sha256": "db5c778488d01d7e7d3409e2cda53ee8f6dd523a327c080000d549dd0f83b375",
+        "bytes": 124808
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/plastic_monobloc_chair_01/plastic_monobloc_chair_01_arm_1k.jpg",
+        "md5": "ce9271797fd8893a6c84f639f952d0b9",
+        "sha256": "78a67659a19a9df9efc0ef71789de0c949a727db62ade4c4c8887cd2c803c1a2",
+        "bytes": 634320
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/plastic_monobloc_chair_01/plastic_monobloc_chair_01_diff_1k.jpg",
+        "md5": "c36dfe0f38d6ca1632ba426c598e6764",
+        "sha256": "fdd1255a02bf684cfcff2eae75c0e3eea0db1fb5ecbfbd8c4f9beab8fd83ff6c",
+        "bytes": 560823
+      },
+      {
+        "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/plastic_monobloc_chair_01/plastic_monobloc_chair_01_nor_gl_1k.jpg",
+        "md5": "387f81f09c0754416298398277fb2a6d",
+        "sha256": "9ffa876b37d72ae1c0aed84d4dc1f62c956c844b3efec1f786f9080c10f63c9e",
+        "bytes": 630024
+      }
+    ],
+    "files": [
+      {
+        "path": "assets/enhanced/props/plastic_monobloc_chair_01/distance-lod.bin",
+        "bytes": 4824,
+        "sha256": "dccf6a050bd7a5f670bd334912bac8872b3ad4e789e0c68f9e9d888901e35f1e"
+      },
+      {
+        "path": "assets/enhanced/props/plastic_monobloc_chair_01/plastic_monobloc_chair_01.bin",
+        "bytes": 124808,
+        "sha256": "db5c778488d01d7e7d3409e2cda53ee8f6dd523a327c080000d549dd0f83b375"
+      },
+      {
+        "path": "assets/enhanced/props/plastic_monobloc_chair_01/plastic_monobloc_chair_01.gltf",
+        "bytes": 2336,
+        "sha256": "d4066cc0d74c9354974e8b7718a4d097343b2e29912523ee26d58cb498f1688e"
+      },
+      {
+        "path": "assets/enhanced/props/plastic_monobloc_chair_01/textures/plastic_monobloc_chair_01_arm_1k.webp",
+        "bytes": 119642,
+        "sha256": "3fe979ba89dbc70bf42908d3e1b24817478b7e9b779e41a9eb0ef0e488cdf63a"
+      },
+      {
+        "path": "assets/enhanced/props/plastic_monobloc_chair_01/textures/plastic_monobloc_chair_01_diff_1k.webp",
+        "bytes": 106196,
+        "sha256": "0be1363e5df30eaeb1cfde210f880cf2285e0e0aa43347b297e81f32c7eb3256"
+      },
+      {
+        "path": "assets/enhanced/props/plastic_monobloc_chair_01/textures/plastic_monobloc_chair_01_nor_gl_1k.webp",
+        "bytes": 171596,
+        "sha256": "d40a63b1445d0e0ede4d8237fe47b546d94a2708b64ec4bc4429b88c8a80b210"
+      }
+    ]
+  }
+]

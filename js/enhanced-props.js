@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js';
+import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-9';
 
 /** Source meshes remain untouched: these are visual replacements in metres. */
 export function meshPlacement(mesh, scale=.01) {
@@ -21,6 +21,26 @@ function sourceKind(name) {
   if(/бочка.*\.jpg/.test(name))return 'barrel';
   if(name==='table.jpg'||name==='big_tabl.jpg')return 'table';
   return null;
+}
+
+/** Atlases are reused on unrelated meshes: inspect shape before substituting.
+ * In particular BOX.JPG also paints towers, beams and large route platforms. */
+export function classifyProp(mesh,modelData){
+  if(mesh.groups?.length!==1)return null;
+  const name=String(modelData.materials[mesh.groups[0].material]?.originalMap||'').replaceAll('\\','/').split('/').at(-1).toLowerCase();
+  const candidate=sourceKind(name);if(!candidate)return null;
+  const p=meshPlacement(mesh),s=p.size,min=Math.min(s.x,s.z),max=Math.max(s.x,s.z);
+  if(candidate==='crate')return min>=.45&&max<=3.5&&s.y>=.4&&s.y<=3&&Math.max(max,s.y)/Math.min(min,s.y)<3.3?'crate':null;
+  if(candidate==='barrel')return min>=.4&&max<=2.5&&s.y>=.4&&s.y<=2.8?'barrel':null;
+  if(candidate==='lounger'){
+    if(max<1.5&&s.y>.55&&s.y<1.7)return 'chair';
+    return p.length>1.5&&max>1.5&&max<5&&s.y<2.5?'lounger':null;
+  }
+  if(candidate==='table'){
+    if(name==='table.jpg'&&max<.95&&s.y>.65&&s.y<1.5)return 'chair';
+    return min>.8&&max<2.8&&max/min<1.4&&s.y>=.6&&s.y<1.65?'table':null;
+  }
+  return candidate==='parasol'&&s.y>1&&s.y<5&&max<5?'parasol':null;
 }
 
 function builder(){
@@ -72,15 +92,15 @@ function prototype(kind,m){
   return b.finish();
 }
 
-export function buildEnhancedProps(modelData,library){
+export function buildEnhancedProps(modelData,library,{skipKinds=new Set(),skipMeshes=new Set()}={}){
   const group=new THREE.Group();group.name='Enhanced authored props';group.userData.graphicsOwned=true;
   const m={metal:new THREE.MeshStandardMaterial({color:0x8c9698,metalness:.86,roughness:.3}),dark:new THREE.MeshStandardMaterial({color:0x252b2b,metalness:.68,roughness:.46}),fabric:new THREE.MeshStandardMaterial({color:0xd7d3ba,roughness:.95,side:THREE.DoubleSide}),blue:new THREE.MeshStandardMaterial({color:0x386c7a,roughness:.7,side:THREE.DoubleSide}),wood:library.createKind('wood')||new THREE.MeshStandardMaterial({color:0x87704d,roughness:.87})};
-  const batches=new Map(),hidden=new Set();
+  const batches=new Map(),hidden=new Set(),replacedMeshes=new Set();
   for(const mesh of modelData.meshes){
     if(mesh.groups?.length!==1)continue;
-    const name=mesh.groups[0].material,kind=sourceKind(modelData.materials[name]?.originalMap);if(!kind)continue;
+    const name=mesh.groups[0].material,kind=classifyProp(mesh,modelData);if(!kind||kind==='chair'||skipKinds.has(kind)||skipMeshes.has(mesh))continue;
     const placement=meshPlacement(mesh);if(placement.size.length()<.2)continue;
-    if(!batches.has(kind))batches.set(kind,[]);batches.get(kind).push(placement);hidden.add(name);
+    if(!batches.has(kind))batches.set(kind,[]);batches.get(kind).push(placement);hidden.add(name);replacedMeshes.add(mesh);
   }
   const obj=new THREE.Object3D();let replacements=0;
   for(const[kind,placements]of batches){
@@ -89,5 +109,6 @@ export function buildEnhancedProps(modelData,library){
       placements.forEach((p,i)=>{obj.position.copy(p.position);obj.rotation.set(0,kind==='lounger'?p.yaw:0,0);if(kind==='lounger')obj.scale.set(p.width/.98,p.size.y/.77,p.length/1.76);else if(kind==='parasol')obj.scale.set(p.size.x/3,p.size.y/2.79,p.size.z/3);else if(kind==='table')obj.scale.set(p.size.x/1.3,p.size.y/.78,p.size.z/1.3);else if(kind==='barrel')obj.scale.set(p.size.x/.87,p.size.y/1.03,p.size.z/.87);else obj.scale.set(p.size.x/1.1,p.size.y/1.06,p.size.z/1.1);obj.updateMatrix();batch.setMatrixAt(i,obj.matrix);});batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();group.add(batch);
     }
   }
-  return {group,hidden,replacements,materials:Object.values(m)};
+  const retainedMeshes=modelData.meshes.filter(mesh=>!replacedMeshes.has(mesh)&&mesh.groups?.some(part=>hidden.has(part.material)));
+  return {group,hidden,hiddenMaterialNames:hidden,retainedMeshes,replacedMeshes,replacements,materials:Object.values(m)};
 }

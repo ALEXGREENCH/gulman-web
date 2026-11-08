@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "asset": "MakeHuman hm08 anatomical head",
+  "license": "CC0-1.0",
+  "source": "https://github.com/makehumancommunity/makehuman/blob/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/makehuman/data/3dobjs/base.obj",
+  "sourceCommit": "a8bc2d54ff0ac92e78ff71431b1023eda42bf482",
+  "sourceSha256": "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c",
+  "authors": [
+    "Data Collection AB",
+    "Joel Palmius",
+    "Jonas Hauquier",
+    "MakeHuman Community"
+  ],
+  "licenseFile": "MAKEHUMAN-CC0.md",
+  "retrieved": "2026-11-09",
+  "derivative": {
+    "path": "assets/enhanced/characters/human-head.js",
+    "bytes": 213535,
+    "sha256": "f0ee58de6e8c608bec0a562c9d443ac16e3d8eca61b4659897ea4fe420252f4b",
+    "vertices": 2156,
+    "triangles": 4000,
+    "bounds": {
+      "min": [
+        -0.095009,
+        -0.005403,
+        -0.049665
+      ],
+      "max": [
+        0.095009,
+        0.281044,
+        0.174247
+      ]
+    },
+    "skullBounds": {
+      "min": [
+        -0.095009,
+        0.058666,
+        -0.049665
+      ],
+      "max": [
+        0.095009,
+        0.281044,
+        0.174247
+      ]
+    }
+  },
+  "processing": [
+    "Official body topology only; helpers, hair and separate eyes excluded",
+    "Cut 5.4 mm below source neck joint; no shoulder flanges",
+    "Y-up, face +Z, neck-local metres, 1.8 m reference human",
+    "Original UVs and anatomy preserved; smooth source normals",
+    "meshoptimizer 1.3.0 attribute-aware simplification, LockBorder; requested absolute error 1.2 mm",
+    "Reported simplification error 0.000430389802204445 m"
+  ],
+  "rebuild": "python scripts/fetch_human_anatomy.py --head-only && node scripts/optimize_human_head.mjs <meshopt_simplifier.js>",
+  "usage": "Use original costume and approved face texture with frontal UV projection; the imported topology replaces only anatomical head geometry."
+}

@@ -4,7 +4,7 @@
 export const COMBAT_WEAPONS = Object.freeze([
   Object.freeze({ capacity: 12, cost: 1, interval: 0.3, reload: 1.25, kick: 0.023, yawKick: 0.005, spread: 0.011, aimedSpread: 0.002 }),
   Object.freeze({ capacity: 30, cost: 1, interval: 0.1, reload: 1.75, kick: 0.015, yawKick: 0.007, spread: 0.017, aimedSpread: 0.0035 }),
-  Object.freeze({ capacity: 5, cost: 5, interval: 1, reload: 1.1, kick: 0.034, yawKick: 0.006, spread: 0.012, aimedSpread: 0.007 }),
+  Object.freeze({ capacity: 5, cost: 5, interval: 1, reload: 1.1, kick: 0, yawKick: 0, spread: 0, aimedSpread: 0 }),
   Object.freeze({ capacity: 9, cost: 3, interval: 0.65, reload: 2.1, kick: 0.047, yawKick: 0.009, spread: 0.014, aimedSpread: 0.003 }),
 ]);
 
@@ -148,6 +148,15 @@ export class CombatController {
     this._cadenceCredit = 0;
     this.onShot();
     return { fired: true, reason: null, cost, ammo: this.ammo, weapon: this.weapon, spread };
+  }
+
+  /** Return an unthrown grenade reserved by tryFire. Other weapons cannot
+   * refill their magazines through this path; the caller owns one pending throw. */
+  returnGrenade(ammo = this.ammo) {
+    const spec = COMBAT_WEAPONS[2];
+    this.setAmmo(totalAmmo(ammo) + spec.cost);
+    this._magazines[2] = Math.min(spec.capacity, this._magazines[2] + spec.cost);
+    return this.ammo;
   }
 
   /** Usually called by tryFire; exposed for an external scripted shot. */

@@ -8,6 +8,8 @@ from pathlib import Path
 import argparse
 import json
 import re
+import struct
+import hashlib
 from PIL import Image
 
 MENU_IDS = {
@@ -56,6 +58,19 @@ HUD_SOURCES = {
 def norm(path): return str(path).replace('\\','/').lower()
 
 
+def original_bmp_alpha(path):
+    """Pillow drops the fourth byte of BI_RGB BMPs, but Gulman's hand uses it."""
+    data=path.read_bytes(); offset=struct.unpack_from('<I',data,10)[0]
+    width,height=struct.unpack_from('<ii',data,18)
+    bits=struct.unpack_from('<H',data,28)[0]; compression=struct.unpack_from('<I',data,30)[0]
+    if data[:2]!=b'BM' or bits!=32 or compression!=0:
+        raise ValueError('Expected original 32-bit uncompressed BGRA hand cursor')
+    image=Image.frombytes('RGBA',(width,abs(height)),data[offset:],'raw','BGRA',0,-1 if height>0 else 1)
+    if image.getchannel('A').getextrema()!=(0,255):
+        raise ValueError('Original hand cursor alpha channel is missing')
+    return image,hashlib.sha256(data).hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('source',type=Path)
@@ -99,6 +114,18 @@ def main():
         return dict(originalKey=key,image=manifest['images'][key],url=manifest['images'][key],size=[info['width'],info['height']])
     hud['frame'] = original_image('textures/рамка.jpg')
     hud['handCursor'] = original_image('textures/hud/рука4!.bmp')
+    hand,hand_hash=original_bmp_alpha(source_files['textures/hud/рука4!.bmp'])
+    hand.save(output/'hand-cursor.png',optimize=True)
+    alpha=hand.getchannel('A').tobytes()
+    hud['handCursor'].update(originalImage=hud['handCursor']['image'],image='assets/ui/hand-cursor.png',url='assets/ui/hand-cursor.png',
+        alphaMode='original-bmp-bgra',sourceSha256=hand_hash,alphaSha256=hashlib.sha256(alpha).hexdigest(),
+        transparentPixels=alpha.count(0),translucentPixels=sum(0<a<255 for a in alpha))
+    cursor=dict(image=hud['handCursor']['image'],size=list(hand.size),hotspot=[17,10],displayWidth=160,
+        glow=original_image('textures/hud/light.jpg')['image'],glowSize=72,
+        source='Textures/Hud/рука4!.BMP + Textures/Hud/Light.JPG',
+        sourceRenderSize=[160,160],glowSourceRenderSize=[222,222],
+        animation='CSS pulse of original light sprite; no source animation frames exist',
+        hotspotSource='Visible index-finger tip in the original bitmap')
     extras = {
         'copyrightSplash':original_image('textures/menus/1заставка.jpg'),
         'finalCredits':original_image('textures/menus/участие конец2.jpg'),
@@ -147,11 +174,11 @@ def main():
         'Level selector contains EVEL1 through EVEL8 only; the ninth level is reached through gameplay.',
         'GameOver raw rectangle extends to y=800; hitRect is clipped to y=768.',
         'Shop command ПАТРОНЫ>3> points to the grenade; ПАТРОНЫ>4> points to the BigGun.',
-        'Hand cursor has both white and black exterior regions; its original bitmap is preserved without an inferred color mask.',
+        'Hand cursor preserves its original 32-bit BMP alpha channel, including its translucent shadow; no color-key mask is inferred.',
         'legacyLicenseLoading is an original license-check illustration, not a status claim of the web runtime.',
         'Comic text images are overlays, not standalone story frames. Pair each nвид image with тn and composite full-frame.',
     ]
-    result=dict(version=1,referenceSize=[1024,768],rectFormat='left-top-right-bottom',menus=menus,hud=hud,frames={'default':hud['frame']['image']},extras=extras,comics=comics,diagnostics=diagnostics)
+    result=dict(version=1,referenceSize=[1024,768],rectFormat='left-top-right-bottom',menus=menus,hud=hud,cursor=cursor,frames={'default':hud['frame']['image']},extras=extras,comics=comics,diagnostics=diagnostics)
     (root/'assets/original-ui.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),'utf8')
     print(json.dumps(dict(menus=len(menus),hotspots=sum(len(m['hotspots']) for m in menus.values()),hud=len(hud),comicPairs=sum(len(v) for v in comics.values()),output='assets/original-ui.json'),ensure_ascii=False))
 

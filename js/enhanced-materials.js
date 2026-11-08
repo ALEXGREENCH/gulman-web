@@ -165,6 +165,89 @@ normal = normalize( mat3( viewMatrix ) * enhancedReliefN );
 #endif
 `;
 
+// A landscape atlas describes WHERE grass, paths and rock belong, never the
+// surface detail. The three physical scans keep their metre scale at any UV
+// stretch. Zero-weight branches make flat grass/paving take only one scan.
+const LANDSCAPE_DECLARATIONS = /* glsl */`
+uniform sampler2D landscapeRockColor;
+uniform sampler2D landscapeRockNormal;
+uniform sampler2D landscapeRockRoughness;
+uniform sampler2D landscapePathColor;
+uniform sampler2D landscapePathNormal;
+uniform sampler2D landscapePathRoughness;
+uniform float landscapeRockMeters;
+uniform float landscapePathMeters;
+uniform float landscapeMode;
+uniform vec3 landscapeTint;
+`;
+const LANDSCAPE_COLOR = /* glsl */`
+vec3 enhancedWorldN = inverseTransformDirection( normalize( vNormal ), viewMatrix );
+vec3 landscapeFaceN = normalize( cross( dFdx( vEnhancedMaterialWorld ), dFdy( vEnhancedMaterialWorld ) ) );
+vec3 enhancedW = enhancedWeights( enhancedWorldN );
+vec3 enhancedP = enhancedDetailCoordinates( vEnhancedMaterialWorld / enhancedTileMeters );
+vec3 landscapeRockP = enhancedDetailCoordinates( vEnhancedMaterialWorld / landscapeRockMeters );
+vec3 landscapePathP = vEnhancedMaterialWorld / landscapePathMeters;
+float landscapeRock = 1.0 - smoothstep( 0.48, 0.86, abs( landscapeFaceN.y ) );
+float landscapePath = 0.0;
+#ifdef ENHANCED_ATLAS
+  vec3 a = texture2D( enhancedAtlas, vEnhancedAtlasUV ).rgb;
+  // Atlas is sRGB-decoded by Three. Work in approximate display values for
+  // portable color thresholds, rather than accidentally selecting all sand.
+  a = pow( max(a,vec3(0.0)), vec3(1.0/2.2) );
+  float hi = max(a.r,max(a.g,a.b)), lo = min(a.r,min(a.g,a.b));
+  float sat = (hi-lo)/max(hi,0.001);
+  float luma = dot(a,vec3(0.2126,0.7152,0.0722));
+  float green = smoothstep(0.015,0.09,a.g-a.r) * smoothstep(0.025,0.12,a.g-a.b);
+  if (landscapeMode < 0.5) {
+    // Mountain forest atlas: exposed grey stone appears between vegetation.
+    landscapeRock = max(landscapeRock,(1.0-smoothstep(0.15,0.36,sat))*0.78);
+  } else if (landscapeMode < 1.5) {
+    // Hotel grounds: retain grey roads and plaza layout, not hillside brown.
+    landscapePath = (1.0-smoothstep(0.09,0.23,sat))*smoothstep(0.32,0.48,luma);
+  } else if (landscapeMode < 2.5) {
+    // Countryside: the original pale, desaturated dirt paths survive intact.
+    landscapePath = smoothstep(0.44,0.57,luma)*(1.0-smoothstep(0.16,0.30,sat));
+  } else if (landscapeMode < 3.5) {
+    // Jungle: ochre clearings/paths against the dark forest floor.
+    landscapePath = smoothstep(0.37,0.54,luma)*smoothstep(0.015,0.075,a.r-a.g);
+  } else if (landscapeMode < 4.5) {
+    landscapePath = 1.0-smoothstep(0.12,0.30,sat); // Taj garden walkways
+  } else if (landscapeMode < 5.5) {
+    landscapePath = 1.0-green; // grass surrounding the cathedral forecourt
+  } else {
+    // Beach atlas places gentle rock outcrops too; preserve yellow sand.
+    landscapeRock = max(landscapeRock,1.0-smoothstep(0.46,0.64,luma));
+  }
+#endif
+landscapePath *= smoothstep(0.63,0.9,abs(landscapeFaceN.y));
+landscapeRock *= 1.0-landscapePath;
+float landscapeBase = max(0.0,1.0-landscapeRock-landscapePath);
+vec3 landscapeAlbedo=vec3(0.0);
+if(landscapeBase>0.001) landscapeAlbedo += enhancedTriplanar(enhancedColor,enhancedP,enhancedW).rgb*landscapeBase*landscapeTint;
+if(landscapeRock>0.001) landscapeAlbedo += enhancedTriplanar(landscapeRockColor,landscapeRockP,enhancedW).rgb*landscapeRock;
+if(landscapePath>0.001) landscapeAlbedo += enhancedTriplanar(landscapePathColor,landscapePathP,enhancedW).rgb*landscapePath;
+float landscapeMacro = sin(vEnhancedMaterialWorld.x*.075+sin(vEnhancedMaterialWorld.z*.048))*sin(vEnhancedMaterialWorld.z*.093);
+diffuseColor.rgb *= landscapeAlbedo*(1.0+landscapeMacro*.09);
+`;
+const LANDSCAPE_ROUGHNESS = /* glsl */`
+float roughnessFactor=0.0;
+if(landscapeBase>0.001) roughnessFactor += enhancedTriplanar(enhancedRoughness,enhancedP,enhancedW).g*landscapeBase;
+if(landscapeRock>0.001) roughnessFactor += enhancedTriplanar(landscapeRockRoughness,landscapeRockP,enhancedW).g*landscapeRock;
+if(landscapePath>0.001) roughnessFactor += enhancedTriplanar(landscapePathRoughness,landscapePathP,enhancedW).g*landscapePath;
+roughnessFactor=clamp(roughnessFactor*roughness,0.38,1.0);
+`;
+const LANDSCAPE_NORMAL = /* glsl */`
+vec3 enhancedGradient=vec3(0.0);
+if(landscapeBase>0.001) enhancedGradient += enhancedNormalGradient(enhancedNormal,enhancedP,enhancedW)*landscapeBase;
+if(landscapeRock>0.001) enhancedGradient += enhancedNormalGradient(landscapeRockNormal,landscapeRockP,enhancedW)*landscapeRock;
+if(landscapePath>0.001) enhancedGradient += enhancedNormalGradient(landscapePathNormal,landscapePathP,enhancedW)*landscapePath;
+enhancedGradient -= enhancedWorldN*dot(enhancedGradient,enhancedWorldN);
+normal=normalize(mat3(viewMatrix)*normalize(enhancedWorldN+enhancedGradient*enhancedNormalStrength));
+#ifdef DOUBLE_SIDED
+normal*=faceDirection;
+#endif
+`;
+
 export function installEnhancedMaterialShader(material, uniforms, sand = false) {
   if (sand) material.defines = { ...material.defines, ENHANCED_SAND: 1 };
   const atlas = Boolean(uniforms.enhancedAtlas);
@@ -187,12 +270,13 @@ export function installEnhancedMaterialShader(material, uniforms, sand = false) 
       #endif
       vEnhancedMaterialWorld = ( modelMatrix * enhancedWorldPosition ).xyz;
     `);
-    shader.fragmentShader = `${DECLARATIONS}\n${shader.fragmentShader}`;
-    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', COLOR)
-      .replace('#include <roughnessmap_fragment>', ROUGHNESS)
-      .replace('#include <normal_fragment_maps>', NORMAL);
+    const landscape=Boolean(material.defines?.ENHANCED_LANDSCAPE);
+    shader.fragmentShader = `${DECLARATIONS}\n${landscape?LANDSCAPE_DECLARATIONS:''}\n${shader.fragmentShader}`;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', landscape?LANDSCAPE_COLOR:COLOR)
+      .replace('#include <roughnessmap_fragment>', landscape?LANDSCAPE_ROUGHNESS:ROUGHNESS)
+      .replace('#include <normal_fragment_maps>', landscape?LANDSCAPE_NORMAL:NORMAL);
   };
-  material.customProgramCacheKey = () => `gulman-cc0-triplanar-v3-${material.defines?.ENHANCED_GARDEN ? 'garden' : sand ? 'shore' : 'surface'}-${atlas ? 'atlas' : 'plain'}`;
+  material.customProgramCacheKey = () => `gulman-cc0-triplanar-v4-${material.defines?.ENHANCED_LANDSCAPE ? 'landscape' : material.defines?.ENHANCED_GARDEN ? 'garden' : sand ? 'shore' : 'surface'}-${atlas ? 'atlas' : 'plain'}`;
   return material;
 }
 
@@ -288,6 +372,28 @@ export class EnhancedMaterialLibrary {
     if (garden) material.defines={...material.defines,ENHANCED_GARDEN:1};
     installEnhancedMaterialShader(material, uniforms, kind === 'sand');
     this.materials.add(material);
+    return material;
+  }
+
+  createLandscape({atlas=null,mode=0,base='grass',path='sand',tint=0xffffff}={}) {
+    if(!this.loaded||this.disposed)return null;
+    const primary=this.sets.get(base),rock=this.sets.get('cliff'),trail=this.sets.get(path);
+    if(!primary||!rock||!trail)return null;
+    const material=this.createKind(base,{normalStrength:.72});
+    // Landscape has its own three-way scan blend, so remove beach-only macros.
+    material.defines={ENHANCED_NATURAL:1,ENHANCED_LANDSCAPE:1};
+    const u=material.userData.enhancedUniforms;
+    for(const [label,set] of [['Rock',rock],['Path',trail]]){
+      u[`landscape${label}Color`]={value:set.color};
+      u[`landscape${label}Normal`]={value:set.normal};
+      u[`landscape${label}Roughness`]={value:set.roughness};
+      u[`landscape${label}Meters`]={value:set.tileMeters};
+    }
+    u.landscapeMode={value:mode};u.landscapeTint={value:new THREE.Color(tint)};
+    if(atlas?.isTexture){u.enhancedAtlas={value:atlas};u.enhancedAtlasTransform={value:new THREE.Matrix3().setUvTransform(atlas.offset.x,atlas.offset.y,atlas.repeat.x,atlas.repeat.y,atlas.rotation,atlas.center.x,atlas.center.y)};}
+    material.name=`Enhanced landscape ${base}/${path}`;
+    material.userData.enhancedLandscape=true;
+    installEnhancedMaterialShader(material,u);
     return material;
   }
 

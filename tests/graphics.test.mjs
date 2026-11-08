@@ -80,7 +80,7 @@ test('pending asset textures use the current mode, respect GPU caps, and retain 
   assert.equal(render.ratio, 1.25);
 });
 
-test('PBR conversion shares materials and restores light targets, fog, materials and shadow flags', () => {
+test('PBR conversion shares materials, restores Original appearance, and retains baseline object shadows', () => {
   const graphics = manager();
   const render = renderer(16);
   const scene = new THREE.Scene();
@@ -120,12 +120,11 @@ test('PBR conversion shares materials and restores light targets, fog, materials
     assert.equal(render.toneMappingExposure, 1);
     assert.equal(mesh.material, material);
     assert.equal(other.material, material);
-    assert.equal(mesh.castShadow, false);
-    assert.equal(mesh.receiveShadow, false);
-    assert.equal(sun.castShadow, false);
-    assert.deepEqual(sun.position, lightPosition);
-    assert.equal(sun.target.parent, null);
-    assert.deepEqual(new THREE.Vector3().setFromMatrixPosition(sun.target.matrixWorld), new THREE.Vector3());
+    assert.equal(mesh.castShadow, true);
+    assert.equal(mesh.receiveShadow, true);
+    assert.equal(sun.castShadow, true);
+    assert.equal(render.shadowMap.enabled, true);
+    assert.equal(sun.target.parent, scene);
     assert.equal(scene.fog, fog);
     assert.equal(hemi.intensity, 2.1);
     assert.equal(sun.intensity, 1.5);
@@ -135,6 +134,12 @@ test('PBR conversion shares materials and restores light targets, fog, materials
   assert.equal(scene.children.filter(child => child.name === 'enhanced-contact-shadow').length, 0);
   graphics.dispose();
   assert.equal(scene.getObjectByName('enhanced-contact-shadow'), undefined);
+  assert.equal(mesh.castShadow, false);
+  assert.equal(mesh.receiveShadow, false);
+  assert.equal(sun.castShadow, false);
+  assert.deepEqual(sun.position, lightPosition);
+  assert.equal(sun.target.parent, null);
+  assert.deepEqual(new THREE.Vector3().setFromMatrixPosition(sun.target.matrixWorld), new THREE.Vector3());
 });
 
 test('turning optional lighting off keeps enhanced textures but disables the contact decal', async () => {
@@ -266,6 +271,10 @@ test('an existing application-owned shadow map is restored rather than disposed'
   graphics.applyRenderer(render).applyScene(scene).setMode('enhanced');
   assert.equal(sun.shadow.map, null, 'owned enhanced map is allocated by the renderer later');
   graphics.setMode('original');
+  assert.equal(sun.shadow.map, null, 'Original also uses the bounded baseline shadow map');
+  assert.equal(sun.shadow.mapSize.x, 1024);
+  assert.equal(disposed, 0);
+  graphics.releaseScene(scene);
   assert.equal(sun.shadow.map, borrowed);
   assert.equal(sun.shadow.mapSize.x, 256);
   assert.equal(sun.castShadow, true);
@@ -273,6 +282,49 @@ test('an existing application-owned shadow map is restored rather than disposed'
   graphics.dispose();
   assert.equal(disposed, 0);
   borrowed.dispose();
+});
+
+test('Original tables and parasols cast onto source ground without requiring Enhanced materials; economy disables the map', () => {
+  const graphics = manager(), render = renderer(), scene = new THREE.Scene();
+  const sun = new THREE.DirectionalLight(0xfff0cf, 1.5); sun.position.set(80, 180, 50);
+  const material = new THREE.MeshLambertMaterial({ color: 0xe0d0b0 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80).rotateX(-Math.PI / 2), material);
+  const table = new THREE.Mesh(new THREE.BoxGeometry(2, .1, 2), material); table.position.set(0, 1, 8);
+  const canopy = new THREE.Mesh(new THREE.ConeGeometry(2, .6, 12), material); canopy.position.set(4, 2.5, 8);
+  scene.add(sun, ground, table, canopy);
+  graphics.applyRenderer(render).applyScene(scene);
+  assert.equal(render.shadowMap.enabled, true); assert.equal(sun.castShadow, true);
+  for (const mesh of [ground, table, canopy]) { assert.equal(mesh.castShadow, true); assert.equal(mesh.receiveShadow, true); assert.equal(mesh.material, material); }
+  assert.equal(sun.intensity, 1.5); assert.equal(graphics.diagnostics.pbrMaterials, 0);
+  graphics.setMode('potato'); assert.equal(render.shadowMap.enabled, false);
+  graphics.setMode('original'); assert.equal(render.shadowMap.enabled, true);
+  graphics.dispose(); assert.equal(render.shadowMap.enabled, false);
+  for (const mesh of [ground, table, canopy]) mesh.geometry.dispose(); material.dispose();
+});
+
+test('sun shadow frustum follows distant and elevated players, covers visible nearby props, and refreshes immediately after recovery', () => {
+  const graphics = manager(), render = renderer(), scene = new THREE.Scene();
+  const sun = new THREE.DirectionalLight(); sun.position.set(80, 180, 50); scene.add(sun);
+  const camera = new THREE.PerspectiveCamera(67, 1, .08, 1000);
+  const weapon = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial()); weapon.userData.graphicsOwned = true; weapon.castShadow = true; camera.add(weapon);
+  graphics.applyRenderer(render).applyScene(scene);
+  for (const mode of ['original', 'enhanced']) {
+    graphics.setMode(mode);
+    for (const quality of ['high', 'low']) {
+      graphics.setQuality(quality);
+      const player = new THREE.Vector3(135, -22, -50); camera.position.copy(player).add(new THREE.Vector3(0, 1.4, 0)); camera.lookAt(player.clone().add(new THREE.Vector3(0, 1.4, 40)));
+      graphics.update(player, { dt: 0, camera }); scene.updateMatrixWorld(true); sun.shadow.updateMatrices(sun);
+      const point = player.clone().add(new THREE.Vector3(0, 1.5, 8)).applyMatrix4(sun.shadow.camera.matrixWorldInverse).applyMatrix4(sun.shadow.camera.projectionMatrix);
+      assert.ok(Math.abs(point.x) < 1 && Math.abs(point.y) < 1 && Math.abs(point.z) < 1, 'nearby tabletop and ground fit inside the actual shadow frustum');
+      assert.ok(sun.shadow.mapSize.x <= 1024); assert.ok(sun.shadow.normalBias <= .025);
+      render.shadowMap.needsUpdate = false; sun.shadow.needsUpdate = false;
+      graphics.update(new THREE.Vector3(-130, 33, 75), { dt: 0 });
+      assert.equal(sun.shadow.needsUpdate, true); assert.equal(render.shadowMap.needsUpdate, true);
+      assert.ok(sun.target.position.distanceTo(new THREE.Vector3(-130, 35, 75)) < .1, 'teleport/recovery does not wait for the refresh timer');
+      assert.equal(weapon.castShadow, false);
+    }
+  }
+  graphics.dispose(); weapon.geometry.dispose(); weapon.material.dispose();
 });
 
 test('automatic quality responds to sustained slow frames, but original/economy stay direct', () => {

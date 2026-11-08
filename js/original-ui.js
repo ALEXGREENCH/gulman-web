@@ -1,7 +1,21 @@
-/** The original bitmap menus, displayed on their 1024 × 768 reference canvas.
+/** The original bitmap menus, with their native aspect ratio preserved.
  * Each transparent native button follows the corresponding Menu_Save region.
  * Extras are trusted application HTML or a DOM element, never archive text.
  */
+export function fitOriginalArtwork(viewportSize,referenceSize=[1024,768],imageSize=referenceSize){
+  const width=referenceSize[0],height=width*imageSize[1]/imageSize[0];
+  return {width,height,scale:Math.max(0,Math.min(viewportSize[0]/width,viewportSize[1]/height))};
+}
+
+export function cursorPlacement(x,y,hotspot,scale){return{x:x-hotspot[0]*scale,y:y-hotspot[1]*scale};}
+
+export function fitShopLayout(viewportSize,referenceSize=[1024,768],imageSize=referenceSize){
+  const [width,height]=viewportSize,stacked=width<700&&height>=480,panelHeight=270,gap=10;
+  const fit=fitOriginalArtwork([width,stacked?Math.max(1,height-panelHeight-gap-24):height],referenceSize,imageSize);
+  const artHeight=fit.height*fit.scale,artTop=stacked?Math.max(12,(height-artHeight-panelHeight-gap)/2):(height-artHeight)/2;
+  return {...fit,stacked,artTop,panelTop:artTop+artHeight+gap,panelHeight};
+}
+
 export class OriginalUI {
   constructor({ root, assets, onCommand = () => {} }) {
     if (!root || !assets) throw new TypeError('OriginalUI requires root and assets');
@@ -12,10 +26,25 @@ export class OriginalUI {
     this._visible = false;
     this._currentMenu = null;
     this._referenceSize = [1024, 768];
+    this._imageSize = this._referenceSize;
     this._focusBefore = null;
     this.contentElement = null;
     this.extrasElement = null;
     this._resize = () => this._fit();
+    this._pointerMove = event => {
+      if(event.pointerType==='touch'||event.pointerType==='pen'){this._hideCursor();return;}
+      if(!this.visible||document.pointerLockElement||!this._cursorReady)return;
+      if(window.matchMedia&&!window.matchMedia('(any-hover: hover) and (any-pointer: fine)').matches)return;
+      this._lastPointer={x:event.clientX,y:event.clientY};
+      this._positionCursor();
+      this.cursor.hidden=false;this.root.classList.add('has-original-cursor');
+      const target=event.target.closest?.('button, a, input, select, textarea, [data-command]');
+      this.cursor.classList.toggle('is-action',!!target&&!target.disabled);
+    };
+    this._pointerLeave = () => this._hideCursor();
+    this._pointerDown = event => {if(event.pointerType==='touch'||event.pointerType==='pen')this._hideCursor();else this.cursor?.classList.add('is-pressed');};
+    this._pointerUp = () => this.cursor?.classList.remove('is-pressed');
+    this._pointerLock = () => {if(document.pointerLockElement)this._hideCursor();};
     this._click = event => {
       const button = event.target.closest?.('[data-command]');
       if (!button || !this.root.contains(button) || button.disabled) return;
@@ -28,7 +57,8 @@ export class OriginalUI {
         event.stopPropagation();
         this.onCommand('ESC', null, event);
       } else if (event.key === 'Tab') {
-        const focusable = [...this.root.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
+        this._hideCursor();
+        const focusable = [...this.root.querySelectorAll('button:not(:disabled):not([tabindex="-1"]), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
           .filter(element => !element.hidden && element.getClientRects().length);
         if (!focusable.length) { event.preventDefault(); return; }
         const first = focusable[0], last = focusable.at(-1);
@@ -42,6 +72,12 @@ export class OriginalUI {
       }
     };
     this.root.addEventListener('click', this._click);
+    this.root.addEventListener('pointermove',this._pointerMove);
+    this.root.addEventListener('pointerleave',this._pointerLeave);
+    this.root.addEventListener('pointerdown',this._pointerDown);
+    window.addEventListener('pointerup',this._pointerUp);
+    window.addEventListener('blur',this._pointerLeave);
+    document.addEventListener('pointerlockchange',this._pointerLock);
     document.addEventListener('keydown', this._keydown, true);
     window.addEventListener('resize', this._resize);
   }
@@ -51,6 +87,7 @@ export class OriginalUI {
       this._initializing = this.assets.json('assets/original-ui.json').then(data => {
         if (!data?.menus) throw new Error('В архиве отсутствует описание оригинальных меню');
         this.data = data;
+        this._createCursor(data.cursor);
         return this;
       });
     }
@@ -61,19 +98,30 @@ export class OriginalUI {
   get currentMenu() { return this._currentMenu; }
 
   _fit() {
-    const [width, height] = this._referenceSize;
     const availableWidth = this.root.clientWidth || window.innerWidth;
     const availableHeight = (this.root.clientHeight || window.innerHeight) - (this._comicMode ? 48 : 0);
-    this.root.style.setProperty('--original-ui-scale', String(Math.min(availableWidth / width, availableHeight / height)));
+    const fit=this.shopControls?fitShopLayout([availableWidth,availableHeight],this._referenceSize,this._imageSize):fitOriginalArtwork([availableWidth,availableHeight],this._referenceSize,this._imageSize);
+    this.root.classList.toggle('original-shop-stacked',!!fit.stacked);
+    if(this.shopControls){
+      (fit.stacked?this.root:this.stage).append(this.shopControls);
+      this.root.style.setProperty('--shop-art-top',`${fit.artTop}px`);
+      this.root.style.setProperty('--shop-controls-top',`${fit.panelTop}px`);
+    }
+    this.root.style.setProperty('--original-ui-scale',String(fit.scale));
+    if(this.stage){this.stage.style.width=`${fit.width}px`;this.stage.style.height=`${fit.height}px`;}
+    this._cursorScale=(this.data?.cursor?.displayWidth??160)/(this.data?.cursor?.size?.[0]??172)*Math.max(.5,Math.min(1,availableHeight/768));
+    this._positionCursor();
   }
 
-  _begin(menuId, referenceSize, label) {
+  _begin(menuId, referenceSize, label, imageSize) {
     this._comicMode = false;
     this.root.classList.remove('has-comic');
     if (!this.visible) this._focusBefore = document.activeElement;
     this._currentMenu = menuId;
+    this.shopControls=null;
     this._visible = true;
     this._referenceSize = referenceSize ?? [1024, 768];
+    this._imageSize = imageSize ?? this._referenceSize;
     this.root.classList.add('original-ui');
     this.root.hidden = false;
     this.root.removeAttribute('aria-hidden');
@@ -84,6 +132,7 @@ export class OriginalUI {
     this.stage.style.width = `${this._referenceSize[0]}px`;
     this.stage.style.height = `${this._referenceSize[1]}px`;
     this.root.append(this.stage);
+    if(this.cursor)this.root.append(this.cursor);
     this.contentElement = null;
     this.extrasElement = null;
     this._fit();
@@ -98,7 +147,40 @@ export class OriginalUI {
     image.draggable = false;
     image.setAttribute('aria-hidden', 'true');
     this.stage.append(image);
+    // Extend the same original painting across a widescreen viewport. Only
+    // this decorative backdrop is cropped/blurred; the central art is intact.
+    this.ambient?.remove();this.ambient=document.createElement('div');
+    this.ambient.className='original-ui-ambient';this.ambient.setAttribute('aria-hidden','true');
+    this.ambient.style.backgroundImage=`url(${JSON.stringify(this.assets.url(path))})`;
+    this.root.prepend(this.ambient);
   }
+
+  _createCursor(spec){
+    if(!spec?.image)return;
+    this.cursor=document.createElement('div');this.cursor.className='original-menu-cursor';this.cursor.hidden=true;
+    this.cursor.setAttribute('aria-hidden','true');
+    this.cursor.style.width=`${spec.size[0]}px`;this.cursor.style.height=`${spec.size[1]}px`;
+    this.cursorHand=document.createElement('img');this.cursorHand.className='original-menu-cursor-hand';
+    this.cursorHand.alt='';this.cursorHand.draggable=false;
+    this.cursorHand.onload=()=>{this._cursorReady=true;};
+    this.cursorHand.onerror=()=>{this._cursorReady=false;this._hideCursor();};
+    this.cursorHand.src=this.assets.url(spec.image);this.cursor.append(this.cursorHand);
+    if(spec.glow){
+      const glow=document.createElement('img');glow.className='original-menu-cursor-glow';glow.alt='';glow.draggable=false;
+      glow.src=this.assets.url(spec.glow);glow.style.maskImage=`url("${glow.src}")`;const size=spec.glowSize??72;
+      glow.style.width=`${size}px`;glow.style.height=`${size}px`;
+      glow.style.left=`${spec.hotspot[0]-size/2}px`;glow.style.top=`${spec.hotspot[1]-size/2}px`;
+      glow.onerror=()=>{glow.hidden=true;};this.cursor.append(glow);
+    }
+  }
+
+  _positionCursor(){
+    if(!this.cursor||!this._lastPointer)return;
+    const scale=this._cursorScale||1,p=cursorPlacement(this._lastPointer.x,this._lastPointer.y,this.data.cursor.hotspot,scale);
+    this.cursor.style.transform=`translate3d(${p.x}px,${p.y}px,0) scale(${scale})`;
+  }
+
+  _hideCursor(){this.root.classList.remove('has-original-cursor');if(this.cursor)this.cursor.hidden=true;}
 
   _rect(element, rect) {
     const [width, height] = this._referenceSize;
@@ -137,14 +219,37 @@ export class OriginalUI {
   }
 
   _focusFirst() {
-    this.root.querySelector('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')?.focus({ preventScroll: true });
+    this.root.querySelector('button:not(:disabled):not([tabindex="-1"]), input:not(:disabled), select:not(:disabled), [tabindex="0"]')?.focus({ preventScroll: true });
   }
 
-  show(menuId, { extras, extrasRect, extrasClass = '', status, hotspotLabels = {}, disabledCommands = [] } = {}) {
+  _shop(stock,status,disabled){
+    const controls=document.createElement('div');controls.className='original-shop-controls';controls.setAttribute('aria-label','Покупки в Гульмаге');
+    const balance=document.createElement('p');balance.className='original-shop-balance';
+    const caption=document.createElement('span');caption.textContent='Баланс';const amount=document.createElement('strong');amount.textContent=`$${stock.balance??0}`;
+    balance.append(caption,amount);this._rect(balance,[53,614,244,36]);controls.append(balance);
+    const locations={'ПАТРОНЫ>4>':[22,258,290,66],'ПАТРОНЫ>3>':[24,478,247,66],BUY_HEALTH:[51,654,250,58]};
+    for(const offer of stock.offers||[]){
+      const button=this.button(offer.command,`${offer.label}, ${offer.detail}, $${offer.price}`,{rect:locations[offer.command],disabled:!!offer.disabled||disabled.has(offer.command),className:'original-shop-offer'});
+      button.replaceChildren();button.dataset.shopItem=offer.command==='BUY_HEALTH'?'health':offer.command==='ПАТРОНЫ>3>'?'grenades':'biggun';
+      const name=document.createElement('span');name.className='original-shop-name';name.textContent=offer.label;
+      const detail=document.createElement('small');detail.className='original-shop-detail';detail.textContent=offer.detail;
+      const price=document.createElement('strong');price.className='original-shop-price';price.textContent=`$${offer.price}`;
+      button.append(name,detail,price);controls.append(button);
+      // The painted object remains clickable. Its visible purchase button is
+      // the single keyboard/screen-reader target for the same command.
+      for(const hotspot of this.stage.querySelectorAll('.original-ui-hotspot'))if(hotspot.dataset.command===offer.command){hotspot.title=button.title;hotspot.disabled=button.disabled;hotspot.tabIndex=-1;hotspot.setAttribute('aria-hidden','true');}
+    }
+    const back=this.button('В=ИГРУ','В игру',{rect:[771,637,208,66],className:'original-shop-return',disabled:disabled.has('В=ИГРУ')});controls.append(back);
+    for(const hotspot of this.stage.querySelectorAll('.original-ui-hotspot'))if(hotspot.dataset.command==='В=ИГРУ'){hotspot.tabIndex=-1;hotspot.setAttribute('aria-hidden','true');}
+    const message=document.createElement('p');message.className='original-shop-message';message.setAttribute('role','status');message.setAttribute('aria-live','polite');message.textContent=status||'';this._rect(message,[22,550,300,52]);controls.append(message);
+    this.shopControls=controls;this.extrasElement=controls;this.stage.append(controls);this._fit();
+  }
+
+  show(menuId, { extras, extrasRect, extrasClass = '', shop, status, hotspotLabels = {}, disabledCommands = [] } = {}) {
     if (!this.data) throw new Error('Call await OriginalUI.init() before show()');
     const menu = this.data.menus[menuId];
     if (!menu) throw new Error(`Неизвестное оригинальное меню: ${menuId}`);
-    this._begin(menuId, menu.referenceSize ?? this.data.referenceSize, menu.label || menu.title);
+    this._begin(menuId, menu.referenceSize ?? this.data.referenceSize, menu.label || menu.title, menu.imageSize);
     this._background(menu.image);
     const disabled = new Set(disabledCommands);
     for (const hotspot of menu.hotspots ?? []) {
@@ -180,7 +285,8 @@ export class OriginalUI {
         disabled: disabled.has('MENU_BACK'),
       }));
     }
-    if (status) {
+    if(menuId==='shop'&&shop)this._shop(shop,status,disabled);
+    if (status&&!(menuId==='shop'&&shop)) {
       const output = document.createElement('p');
       output.className = 'original-ui-status';
       output.setAttribute('role', 'status');
@@ -193,7 +299,7 @@ export class OriginalUI {
 
   showFrame(html, { title, backCommand = 'MENU_BACK', backLabel = 'Назад' } = {}) {
     if (!this.data) throw new Error('Call await OriginalUI.init() before showFrame()');
-    this._begin('frame', [1024, 768], title || 'Гульмэн');
+    this._begin('frame', [1024, 768], title || 'Гульмэн', this.data.hud?.frame?.size);
     this.stage.classList.add('original-ui-framed');
     this._background(this.data.frames?.default ?? this.assets.manifest?.images?.['textures/рамка.jpg']);
     const content = document.createElement('div');
@@ -217,6 +323,7 @@ export class OriginalUI {
   }
 
   hide() {
+    this._hideCursor();this._lastPointer=null;
     this._visible = false;
     this.root.hidden = true;
     this.root.setAttribute('aria-hidden', 'true');
@@ -235,6 +342,12 @@ export class OriginalUI {
   dispose() {
     this.hide();
     this.root.removeEventListener('click', this._click);
+    this.root.removeEventListener('pointermove',this._pointerMove);
+    this.root.removeEventListener('pointerleave',this._pointerLeave);
+    this.root.removeEventListener('pointerdown',this._pointerDown);
+    window.removeEventListener('pointerup',this._pointerUp);
+    window.removeEventListener('blur',this._pointerLeave);
+    document.removeEventListener('pointerlockchange',this._pointerLock);
     document.removeEventListener('keydown', this._keydown, true);
     window.removeEventListener('resize', this._resize);
     this.root.replaceChildren();

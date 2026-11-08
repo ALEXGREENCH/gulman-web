@@ -38,9 +38,7 @@ const ATLASES = {
   '12345': { size:256, style:'kremlin', features:[rect(157,57,185,102,'door','point'),rect(28,211,63,255,'door','point'),rect(199,49,231,81,'clock')] },
   'brick mu': { size:256, style:'kremlin', features:[] },
   'wall1': { size:256, style:'industrial', features:[] },
-  'tx3': { size:1024, style:'acropolis', features:[],wallKind:'rock',clipRegions:true,wallRegions:[[0,0,620,280],[770,0,1024,280],[620,205,770,280],[0,280,1024,790],[105,790,1024,1024],[0,905,105,1024]] },
   'tx4': { size:1024, style:'acropolis', features:[],wallKind:'limestone',clipRegions:true,wallRegions:[[60,103,974,218],[8,331,1016,448],[130,573,883,711],[14,843,1014,960]] },
-  'tx5': { size:1024, style:'acropolis', features:[],wallKind:'rock',clipRegions:true,wallRegions:[[62,112,974,182],[80,317,668,383],[72,506,252,568],[378,528,787,581],[372,755,835,815],[12,886,856,938]] },
   'безиме': { size:512, style:'kremlin', features:Array.from({length:12},(_,i)=>rect(20+i*14,173,30+i*14,194,'window','point')),wallKind:'brick',wallRegions:[[18,268,250,312],[45,414,265,452],[7,464,235,507],[370,390,440,420]] },
 };
 
@@ -54,6 +52,29 @@ Object.assign(ATLASES.piramida,{wallKind:'mayan',wallRegions:[[270,0,683,715]]})
 Object.assign(ATLASES.house,{wallKind:'mayan',wallRegions:[[0,0,730,610],[365,640,1023,1023]]});
 // The cathedral bell slits are narrower than their carved stone surrounds.
 ATLASES.front.features.splice(0,4,...[[104,140,116,208],[136,140,146,208],[281,144,293,208],[307,144,318,208]].map(r=>rect(...r,'window','point')));
+
+// Replace the actual wall/roof islands, including triangles spanning an atlas
+// boundary. Windows, doors, lettering and historic relief remain independent.
+const surface=(kind,regions)=>({kind,regions});
+ATLASES.bar.surfaceLayers=[surface('wood',[[100,35,238,245]]),surface('plaster',[[69,0,127,30],[241,0,255,255]])];
+ATLASES.castle_f.surfaceLayers=[
+  surface('limestone:weathered',[[0,0,1024,293],[0,415,370,1024],[0,530,435,1024],[0,725,865,1024],[440,530,589,615],[525,615,589,716],[145,310,226,372]]),
+  surface('roof',[[341,310,480,384],[493,430,703,520],[682,570,1024,715],[874,720,1023,1005]])
+];
+ATLASES.cherche_.surfaceLayers=[surface('limestone',[[14,0,64,298],[88,91,130,197],[298,153,495,294],[15,318,153,511],[215,324,496,511]]),surface('roof',[[180,17,510,126],[180,135,270,180],[80,42,146,64]])];
+for(const [name,paint]of [['houses1_','brick'],['houses2_','plaster:teal']]){
+  ATLASES[name].surfaceLayers=[
+    surface(paint,[[0,478,423,674],[80,420,436,478],[447,487,749,581],[578,582,750,675],[0,705,1024,833]]),
+    surface('limestone',[[0,879,1024,1014]]),
+    surface('roof',[[24,0,1024,190]]),
+    surface(name==='houses1_'?'limestone:slate':'roof',[[0,222,246,405],[250,224,950,429],[766,483,1007,682]])
+  ];
+}
+ATLASES.lenin={size:256,style:'kremlin',features:[],surfaceLayers:[surface('marble:red',[[0,27,158,256]]),surface('marble:dark',[[160,27,256,256]])]};
+for(const config of Object.values(ATLASES)){
+  if(config.wallRegions&&!config.surfaceLayers)config.surfaceLayers=[surface(config.wallKind,config.wallRegions)];
+  if(config.surfaceLayers){config.clipRegions=true;config.preserveRegions=config.features.map(f=>{const[x0,y0,x1,y1]=f.rect;return[x0-3,y0-3,x1+3,y1+3];});}
+}
 
 function atlasName(spec = {}) {
   const path = (spec.originalMap || spec.map || '').replaceAll('\\','/').split('/').pop().toLowerCase();
@@ -165,7 +186,11 @@ class Batches {
     if(kind==='glass')m=new THREE.MeshStandardMaterial({color:0x213b42,roughness:.16,metalness:.48,envMapIntensity:.8});
     else if(kind==='iron')m=new THREE.MeshStandardMaterial({color:0x343938,roughness:.37,metalness:.75});
     else if(kind==='gold')m=new THREE.MeshStandardMaterial({color:0xc7a45a,roughness:.32,metalness:.72});
-    else m=this.library?.createKind?.(kind==='mayan'?'limestone':kind,{normalStrength:kind==='mayan'?.5:.26,tileMeters:kind==='wood'?1.8:2,color:kind==='mayan'?0x8b8b7c:0xffffff})||new THREE.MeshStandardMaterial({color:kind==='roof'?0xa75c3a:kind==='wood'?0x72583c:kind==='mayan'?0x8b8b7c:0xc9c3ad,roughness:.78});
+    else {
+      const [base,variant]=kind.split(':'),palette={weathered:0xa5a89a,slate:0x68727a,teal:0x78a79c,red:0x914a40,dark:0x3d2625};
+      const color=palette[variant]??(kind==='mayan'?0x8b8b7c:0xffffff);
+      m=this.library?.createKind?.(base==='mayan'?'limestone':base,{normalStrength:kind==='mayan'?.5:.26,tileMeters:base==='wood'?1.8:base==='brick'?.85:2,color})||new THREE.MeshStandardMaterial({color:variant?color:kind==='roof'?0xa75c3a:kind==='wood'?0x72583c:kind==='mayan'?0x8b8b7c:0xc9c3ad,roughness:.78});
+    }
     m.userData.graphicsOwned=true;this.materials.set(kind,m);return m;
   }
   geometry(kind) {
@@ -308,11 +333,26 @@ function resurfaceClippedAtlas(mesh,material,spec,config,surfaces,removed,fragme
   for(const group of mesh.groups||[])if(group.material===material)for(let at=group.start;at<group.start+group.count;at+=3){
     const ids=mesh.indices.slice(at,at+3),points=ids.map(i=>vector(mesh.vertices,i)),faceNormal=points[1].clone().sub(points[0]).cross(points[2].clone().sub(points[0])).normalize();
     const vertices=ids.map((index,k)=>({p:points[k],uv:uvPoint(mesh,index,spec),rawUV:new THREE.Vector2().fromArray(mesh.uv,index*2),normal:mesh.normals?.length===mesh.vertices.length?new THREE.Vector3().fromArray(mesh.normals,index*3).normalize():faceNormal}));
-    const pieces=clipTriangleToAtlasRegions(vertices,config.wallRegions,config.size);if(!pieces.selected.length)continue;
-    markRemoved(removed,mesh,at);sourceTriangles++;
-    let surface=surfaces.get(config.wallKind);if(!surface){surface={positions:[],normals:[]};surfaces.set(config.wallKind,surface);}
-    for(const triangle of pieces.selected)for(const v of triangle){surface.positions.push(...v.p.toArray());surface.normals.push(...v.normal.toArray());}triangles+=pieces.selected.length;
-    for(const triangle of pieces.remaining)for(const v of triangle){fragment.indices.push(fragment.indices.length);fragment.vertices.push(...v.p.clone().divideScalar(SCALE).toArray());fragment.normals.push(...v.normal.toArray());fragment.uv.push(...v.rawUV.toArray());}
+    let remaining=[vertices],replaced=0;
+    for(const layer of config.surfaceLayers||[{kind:config.wallKind,regions:config.wallRegions}]){
+      const selected=[],next=[];
+      for(const triangle of remaining){
+        const pieces=clipTriangleToAtlasRegions(triangle,layer.regions,config.size);next.push(...pieces.remaining);
+        for(const part of pieces.selected){
+          if(config.preserveRegions?.length){const art=clipTriangleToAtlasRegions(part,config.preserveRegions,config.size);next.push(...art.selected);selected.push(...art.remaining);}
+          else selected.push(part);
+        }
+      }
+      if(selected.length){
+        let surface=surfaces.get(layer.kind);if(!surface){surface={positions:[],normals:[]};surfaces.set(layer.kind,surface);}
+        for(const triangle of selected)for(const v of triangle){surface.positions.push(...v.p.toArray());surface.normals.push(...v.normal.toArray());}
+        replaced+=selected.length;
+      }
+      remaining=next;
+    }
+    if(!replaced)continue;
+    markRemoved(removed,mesh,at);sourceTriangles++;triangles+=replaced;
+    for(const triangle of remaining)for(const v of triangle){fragment.indices.push(fragment.indices.length);fragment.vertices.push(...v.p.clone().divideScalar(SCALE).toArray());fragment.normals.push(...v.normal.toArray());fragment.uv.push(...v.rawUV.toArray());}
   }
   if(fragment.indices.length){fragment.groups=[{start:0,count:fragment.indices.length,material}];fragments.push(fragment);}
   return {triangles,sourceTriangles};

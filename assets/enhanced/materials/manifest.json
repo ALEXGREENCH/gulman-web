@@ -1,7 +1,7 @@
 {
   "version": 1,
   "license": "https://polyhaven.com/license",
-  "retrieved": "2026-11-08",
+  "retrieved": "2026-11-09",
   "materials": {
     "sand": {
       "asset": "sand_01",
@@ -452,6 +452,96 @@
           "sha256": "80d9e3c491fdec0027afad1e7aa897695bdbc24e33c3fce2ac2c2cb26a99b89d",
           "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/clay_roof_tiles_02/clay_roof_tiles_02_rough_1k.jpg",
           "sourceSha256": "6d7596c4f3644ac50237381aeadf58f9b68a6dddeb66b6eef4f64462dcbbf82f"
+        }
+      }
+    },
+    "cliff": {
+      "asset": "rock_face_04",
+      "source": "https://polyhaven.com/a/rock_face_04",
+      "api": "https://api.polyhaven.com/files/rock_face_04",
+      "license": "CC0-1.0",
+      "authors": {
+        "Dimitrios Savva": "All"
+      },
+      "tileMeters": 2.0,
+      "maps": {
+        "color": {
+          "path": "assets/enhanced/materials/cliff-color.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 363122,
+          "sha256": "e4bb424d89c8b252172c4821628574fcfc3058db3d9d779e046aa31b676b62c8",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_04/rock_face_04_diff_1k.jpg",
+          "sourceSha256": "c6be671d52946f04a270ba721b0dc5b00a3cd0ad88bd812c205fadcf642b1a75"
+        },
+        "normal": {
+          "path": "assets/enhanced/materials/cliff-normal.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 553358,
+          "sha256": "3062b6ccd19f96bce5af12c0154bfb48dca5049008d86b5203af54bc7755a9c7",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_04/rock_face_04_nor_gl_1k.jpg",
+          "sourceSha256": "11bff093f11f837fdb7667a40098d7b9ace0413cd480114c1063c5c48cb6fd47"
+        },
+        "roughness": {
+          "path": "assets/enhanced/materials/cliff-roughness.webp",
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 103378,
+          "sha256": "88489df57ff6a99d7b15f05c0faec744c290a68e4555cbae54d40e10bc80659f",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_04/rock_face_04_rough_1k.jpg",
+          "sourceSha256": "df2fdb24d2ea91740095266c3f9e320229cfcd51fb1af547b98ae319d0d1210f"
+        }
+      }
+    },
+    "cobblestone": {
+      "asset": "cobblestone_01",
+      "source": "https://polyhaven.com/a/cobblestone_01",
+      "api": "https://api.polyhaven.com/files/cobblestone_01",
+      "license": "CC0-1.0",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "tileMeters": 2.4,
+      "maps": {
+        "color": {
+          "path": "assets/enhanced/materials/cobblestone-color.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 246528,
+          "sha256": "c32ada7ff38e28912acd3ab5b2c2e7d2e251985d49c7ed86c9f28f7086c04c56",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_01/cobblestone_01_diff_1k.jpg",
+          "sourceSha256": "aab330227974aadbc477b2022351112f5696fa7048d99dc776c2e6f23f4e0d2a"
+        },
+        "normal": {
+          "path": "assets/enhanced/materials/cobblestone-normal.webp",
+          "size": [
+            1024,
+            1024
+          ],
+          "bytes": 293636,
+          "sha256": "56f52f61bca984c9d4c47b413abf374becb1823156c688bfb32d061fa3d6cf9c",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_01/cobblestone_01_nor_gl_1k.jpg",
+          "sourceSha256": "4b88ed092d4391506b4760f454996f633c171332b8a68557593d6e80627fc8c0"
+        },
+        "roughness": {
+          "path": "assets/enhanced/materials/cobblestone-roughness.webp",
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 168434,
+          "sha256": "d038f7a1d5b8fea05a87e9ca22ae08712587f55fc2f6fc39d5fa2a47c3aca066",
+          "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_01/cobblestone_01_rough_1k.jpg",
+          "sourceSha256": "5c35086e7c8e4ea746967f20bedb67e730ac5332b3370d49befbdd3295354b80"
         }
       }
     }

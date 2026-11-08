@@ -30,6 +30,8 @@ PACK = {
     "limestone": "white_sandstone_blocks_02",
     "marble": "marble_01",
     "roof": "clay_roof_tiles_02",
+    "cliff": "rock_face_04",
+    "cobblestone": "cobblestone_01",
 }
 MAPS = {"color": ("Diffuse", 1024), "normal": ("nor_gl", 1024), "roughness": ("Rough", 512)}
 
@@ -94,7 +96,7 @@ def main() -> None:
     manifest = {
         "version": 1,
         "license": "https://polyhaven.com/license",
-        "retrieved": "2026-11-08",
+        "retrieved": "2026-11-09",
         "materials": materials,
     }
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf8")

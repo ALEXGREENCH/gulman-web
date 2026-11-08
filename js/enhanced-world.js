@@ -1,11 +1,15 @@
 import * as THREE from 'three';
-import {EnhancedMaterialLibrary} from './enhanced-materials.js?v=20261108-7';
-import {EnhancedWater} from './enhanced-water.js?v=20261108-7';
-import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261108-7';
-import {createEnhancedTerrainGeometry} from './enhanced-terrain.js?v=20261108-7';
-import {buildEnhancedBoats} from './enhanced-boats.js?v=20261108-7';
-import {buildEnhancedArchitecture} from './enhanced-architecture.js?v=20261108-7';
-import {mergeWorldMeshes} from './merge-world.js';
+import {EnhancedMaterialLibrary} from './enhanced-materials.js?v=20261109-9';
+import {EnhancedWater} from './enhanced-water.js?v=20261109-9';
+import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261109-9';
+import {EnhancedImportedProps} from './enhanced-imported-props.js?v=20261109-9';
+import {EnhancedVegetation} from './enhanced-vegetation.js?v=20261109-9';
+import {buildEnhancedLandscape,isEnhancedLandscapeMaterial} from './enhanced-landscape.js?v=20261109-9';
+import {remainingEnhancedSource,selectEnhancedSourceMaterials} from './enhanced-source.js?v=20261109-9';
+import {buildEnhancedDecks} from './enhanced-decks.js?v=20261109-9';
+import {buildEnhancedBoats} from './enhanced-boats.js?v=20261109-9';
+import {buildEnhancedArchitecture} from './enhanced-architecture.js?v=20261109-9';
+import {mergeWorldMeshes} from './merge-world.js?v=20261109-9';
 
 const assetRoot='assets/enhanced/models/';
 const TAU=Math.PI*2;
@@ -58,44 +62,60 @@ export class EnhancedWorld {
     this.time={value:0};this.enabled=false;this.disposed=false;this.ready=false;this.replacements=0;this.surfaceCount=0;
     scene.add(this.group);
   }
-  get diagnostics(){return {ready:this.ready,enabled:this.enabled&&this.ready,surfaces:this.surfaceCount,props:this.replacements,architecture:this.architectureStats||null,plants:this.plantBatches.reduce((n,b)=>n+b.capacity,0),water:this.water?.diagnostics||null};}
+  get diagnostics(){return {ready:this.ready,enabled:this.enabled&&this.ready,surfaces:this.surfaceCount,props:this.replacements,architecture:this.architectureStats||null,landscape:this.landscapeStats||null,importedProps:this.importedProps?.stats||null,vegetation:this.vegetation?.stats||null,vegetationError:this.vegetationError||null,plants:this.plantBatches.reduce((n,b)=>n+b.capacity,0),water:this.water?.diagnostics||null};}
   load(){if(!this.promise)this.promise=this._load().catch(error=>{this.setEnabled(false);this.disposed=true;this._release();throw error;});return this.promise;}
   async _load(){
     await this.library.load();if(this.disposed){this.library.dispose();return this;}
     this.library.setQuality(this.quality);
     this.water=new EnhancedWater({scene:this.scene,world:this.world,modelData:this.modelData,quality:this.quality,scale:.01,groundSample:this.groundSample});
-    const waterLevel=this._waterLevel();
-    const surfaces=owned(new THREE.Group());surfaces.name='Photogrammetric surfaces';this.world.updateWorldMatrix(true,false);surfaces.matrix.copy(this.world.matrixWorld);surfaces.matrixAutoUpdate=false;
+    this.world.updateWorldMatrix(true,false);
+    this.sourceRemainder=this.modelData;
+    this.importedProps=new EnhancedImportedProps({assets:this.assets,modelData:this.sourceRemainder,quality:this.quality});
+    await this.importedProps.load();if(this.disposed){this._release();return this;}
+    this.group.add(this.importedProps.group);this.replacements+=this.importedProps.replacements;this._consume(this.importedProps);
+    const props=buildEnhancedProps(this.sourceRemainder,this.library);this.group.add(props.group);this.replacements+=props.replacements;
+    props.group.traverse(o=>{if(o.geometry)this.geometries.add(o.geometry);});for(const m of props.materials)this.materials.add(m);this._consume(props);
+    const boats=buildEnhancedBoats(this.sourceRemainder);this._attach(boats);this.replacements+=boats.replacements;
+    this._attach(buildEnhancedDecks({modelData:this.sourceRemainder,world:this.world,library:this.library}));
+    const architecture=buildEnhancedArchitecture({modelData:this.sourceRemainder,world:this.world,library:this.library,levelId:this.levelId});
+    this._attach(architecture);this.architectureStats=architecture.stats;
+    const landscape=buildEnhancedLandscape({modelData:this.sourceRemainder,world:this.world,library:this.library,levelId:this.levelId,quality:this.quality});
+    this._attach(landscape);this.landscapeStats=landscape.stats;
+    this.vegetation=new EnhancedVegetation({assets:this.assets,modelData:this.sourceRemainder,quality:this.quality});
+    try{await this.vegetation.load();}catch(error){this.vegetationError=String(error.message||error);}
+    if(this.disposed){this._release();return this;}
+    if(this.vegetation.ready){this.group.add(this.vegetation.group);this._consume(this.vegetation);}
+    this._remainingSurfaces();
+    await this._plants();if(this.disposed){this._release();return this;}
+    this.sourceRemainder=null;this.ready=true;this.setEnabled(this.enabled);return this;
+  }
+  _consume(layer){
+    const names=layer.hiddenMaterialNames||layer.hidden||[];
+    for(const name of names)this._hideOriginal(name);
+    this.sourceRemainder=remainingEnhancedSource(this.sourceRemainder,names,layer.retainedMeshes||[]);
+  }
+  _attach(layer){
+    this.group.add(layer.group);for(const g of layer.geometries)this.geometries.add(g);for(const m of layer.materials)this.materials.add(m);this._consume(layer);
+  }
+  _remainingSurfaces(){
+    const names=new Set(this.sourceRemainder.meshes.flatMap(mesh=>(mesh.groups||[]).map(part=>part.material))),materials={};
+    const hidden=new Set([...this.originalVisibility.keys()].map(mesh=>mesh.name.replace(/^world:/,'')));
     for(const original of this.world.children){
       if(!original.isMesh||Array.isArray(original.material))continue;
-      const name=original.name.replace(/^world:/,''),spec=this.modelData.materials[name];
-      if(!spec)continue;
-      const material=this.library.create(original.material,spec.map||spec.originalMap,{waterLevel});if(!material)continue;
-      let geometry=original.geometry;if(material.userData.enhancedSurface==='sand'){geometry=createEnhancedTerrainGeometry(original.geometry,.01);this.geometries.add(geometry);}
-      const mesh=owned(new THREE.Mesh(geometry,material));mesh.name='enhanced-surface:'+name;mesh.castShadow=true;mesh.receiveShadow=true;mesh.matrix.copy(original.matrix);mesh.matrixAutoUpdate=false;
-      surfaces.add(mesh);this._hideOriginal(name);this.surfaceCount++;
+      const name=original.name.replace(/^world:/,''),spec=this.modelData.materials[name],source=original.material;
+      if(!spec||!names.has(name))continue;
+      // Decorated atlas fragments retained by landscape must keep their original art.
+      let material=!isEnhancedLandscapeMaterial(spec,this.levelId)?this.library.create(source,spec.map||spec.originalMap,{waterLevel:this._waterLevel()}):null;
+      if(!material&&/^BOX\.JPG$/i.test(spec.originalMap||''))material=this.library.createKind('wood');
+      if(material){this._hideOriginal(name);hidden.add(name);this.surfaceCount++;}
+      else if(hidden.has(name))material=new THREE.MeshStandardMaterial({map:source.map,color:source.color,side:source.side,alphaTest:source.alphaTest,transparent:source.transparent,opacity:source.opacity,depthWrite:source.depthWrite,roughness:.74,metalness:.03});
+      if(material){materials[name]=material;this.materials.add(material);}
     }
-    this.group.add(surfaces);
-    const props=buildEnhancedProps(this.modelData,this.library);this.group.add(props.group);this.replacements+=props.replacements;
-    props.group.traverse(o=>{if(o.geometry)this.geometries.add(o.geometry);});for(const m of props.materials)this.materials.add(m);for(const n of props.hidden)this._hideOriginal(n);
-    const boats=buildEnhancedBoats(this.modelData);this.group.add(boats.group);this.replacements+=boats.replacements;
-    for(const g of boats.geometries)this.geometries.add(g);for(const m of boats.materials)this.materials.add(m);for(const n of boats.hiddenMaterialNames)this._hideOriginal(n);
-    this._retainSourceMeshes(boats.retainedMeshes,boats.hiddenMaterialNames);
-    const architecture=buildEnhancedArchitecture({modelData:this.modelData,world:this.world,library:this.library,levelId:this.levelId});
-    this.group.add(architecture.group);this.architectureStats=architecture.stats;
-    for(const g of architecture.geometries)this.geometries.add(g);for(const m of architecture.materials)this.materials.add(m);
-    for(const name of architecture.hiddenMaterialNames)this._hideOriginal(name);
-    this._retainSourceMeshes(architecture.retainedMeshes||[],architecture.hiddenMaterialNames);
-    await this._plants();if(this.disposed){this._release();return this;}
-    this.ready=true;this.setEnabled(this.enabled);return this;
-  }
-  _retainSourceMeshes(meshes,names){
-    if(!meshes.length)return;
-    // Shared atlases may contain geometry that was not replaced: boat piers,
-    // for example, or adjoining masonry around newly built columns.
-    const materials={};
-    for(const name of names){const source=this.world.children.find(o=>o.name==='world:'+name)?.material;if(!source)continue;materials[name]=new THREE.MeshStandardMaterial({map:source.map,color:source.color,side:source.side,roughness:.74,metalness:.03});this.materials.add(materials[name]);}
-    const retained=mergeWorldMeshes({...this.modelData,meshes},materials,Object.values(materials)[0]);retained.matrix.copy(this.world.matrixWorld);retained.matrixAutoUpdate=false;retained.traverse(o=>{owned(o);if(o.geometry)this.geometries.add(o.geometry);o.castShadow=true;o.receiveShadow=true;});this.group.add(retained);
+    const data=selectEnhancedSourceMaterials(this.sourceRemainder,Object.keys(materials));
+    if(!data.meshes.length)return;
+    const retained=mergeWorldMeshes(data,materials,Object.values(materials)[0]);retained.name='Remaining enhanced surfaces';
+    retained.matrix.copy(this.world.matrixWorld);retained.matrixAutoUpdate=false;
+    retained.traverse(o=>{owned(o);if(o.geometry){this.geometries.add(o.geometry);o.name=o.name.replace('world:','enhanced-surface:');o.castShadow=true;o.receiveShadow=true;}});this.group.add(retained);
   }
   _waterLevel(){
     const ys=[];for(const m of this.modelData.meshes){if(!m.groups?.some(p=>/^water\.jpg$/i.test(this.modelData.materials[p.material]?.originalMap||'')))continue;const p=meshPlacement(m);if(p.size.y<.1)ys.push(p.position.y);}
@@ -103,7 +123,7 @@ export class EnhancedWorld {
   }
   _hideOriginal(name){const o=this.world.children.find(o=>o.name==='world:'+name);if(o&&!this.originalVisibility.has(o))this.originalVisibility.set(o,o.visible);}
   async _model(name,alpha=false){
-    const {GLTFLoader}=await import('../vendor/addons/loaders/GLTFLoader.js');
+    const {GLTFLoader}=await import('../vendor/addons/loaders/GLTFLoader.js?v=20261109-9');
     const folder=assetRoot+name+'/',raw=await this.assets.json(folder+name+'.gltf'),data=structuredClone(raw);
     for(const item of [...data.buffers||[],...data.images||[]])if(item.uri)item.uri=this.assets.url(folder+item.uri);
     const gltf=await new GLTFLoader().parseAsync(data,'');
@@ -126,22 +146,7 @@ export class EnhancedWorld {
     records.forEach((p,i)=>batch.setMatrixAt(i,p.matrix));batch.instanceMatrix.needsUpdate=true;this.group.add(batch);this.plantBatches.push({batch,records,distance,lowRatio,capacity:positions.length});
   }
   async _plants(){
-    const placements=foliagePlacements(this.modelData);if(!placements.length)return;
-    const results=await Promise.allSettled([this._model('fern_02',true),this._model('grass_bermuda_01',true)]);
-    const failed=results.find(r=>r.status==='rejected');if(failed)throw failed.reason;
-    const [fern,grass]=results.map(r=>r.value);if(this.disposed)return;
-    const fernMesh=fern.getObjectByName('fern_02_a'),grassMesh=grass.getObjectByName('grass_bermuda_01_seedling_a');
-    if(!fernMesh?.isMesh||!grassMesh?.isMesh)throw new Error('Enhanced plant model is missing its expected mesh');
-    this._batch(fernMesh,placements.map(p=>({position:p.position,yaw:p.yaw,scale:Math.min(1.65,p.size.y)})),{height:1,distance:100,wind:true,lowRatio:1});
-    for(const p of placements)this._hideOriginal(p.name);
-    const rng=random(1827+this.levelId),clumps=[];
-    for(const p of placements)for(let i=0;i<Math.min(26,Math.ceil(650/placements.length));i++){
-      const angle=rng()*TAU,r=.35+rng()*1.6,x=p.position.x+Math.cos(angle)*r,z=p.position.z+Math.sin(angle)*r;
-      const y=this.groundSample?.(x,p.position.y+.35,z)??p.position.y;
-      if(Math.abs(y-p.position.y)>.65)continue;
-      clumps.push({position:new THREE.Vector3(x,y-.02,z),yaw:rng()*TAU,scale:.65+rng()*.65});
-    }
-    this._batch(grassMesh,clumps,{height:.32,distance:52,wind:true,lowRatio:.38});
+    const rng=random(1827+this.levelId);
     // Photoscanned coastal rocks stay at the sides of the beach, outside routes.
     if(this.levelId===1){
       const rocks=await this._model('rock_07');if(this.disposed)return;const rockMesh=rocks.getObjectByName('rock_07'),positions=[];
@@ -151,7 +156,7 @@ export class EnhancedWorld {
   }
   setEnabled(enabled){this.enabled=!!enabled;if(this.disposed)return;const active=this.enabled&&this.ready;this.group.visible=active;for(const[o,v]of this.originalVisibility)o.visible=active?false:v;this.water?.setEnabled(active);}
   update(time,camera,quality='high'){
-    if(!this.enabled||!this.ready||this.disposed)return;this.time.value=time;if(this.quality!==quality)this.library.setQuality(quality);this.quality=quality;this.water?.update(time,camera,quality);
+    if(!this.enabled||!this.ready||this.disposed)return;this.time.value=time;if(this.quality!==quality)this.library.setQuality(quality);this.quality=quality;this.water?.update(time,camera,quality);this.importedProps?.update(camera,quality,time);this.vegetation?.update(time,camera,quality);
     // Compact nearby instances 5 times/sec; no per-frame allocations or far grass.
     if(time-(this.lastCull??-Infinity)<.2)return;this.lastCull=time;
     for(const record of this.plantBatches){let count=0;const distance=record.distance*(quality==='low'?.72:1),stride=quality==='low'?Math.max(1,Math.round(1/record.lowRatio)):1;
@@ -159,6 +164,6 @@ export class EnhancedWorld {
       record.batch.count=count;record.batch.instanceMatrix.needsUpdate=true;
     }
   }
-  _release(){this.water?.dispose();this.water=null;this.group.removeFromParent();this.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});this.group.clear();for(const g of this.geometries)g.dispose();for(const m of this.materials){if(this.library.materials.has(m))this.library.disposeMaterial(m);else m.dispose();}for(const t of this.textures){t.dispose();t.image?.close?.();}this.geometries.clear();this.materials.clear();this.textures.clear();this.library.dispose();}
+  _release(){this.importedProps?.dispose();this.vegetation?.dispose();this.water?.dispose();this.water=null;this.group.removeFromParent();this.group.traverse(o=>{if(o.isInstancedMesh)o.dispose();});this.group.clear();for(const g of this.geometries)g.dispose();for(const m of this.materials){if(this.library.materials.has(m))this.library.disposeMaterial(m);else m.dispose();}for(const t of this.textures){t.dispose();t.image?.close?.();}this.geometries.clear();this.materials.clear();this.textures.clear();this.library.dispose();}
   dispose(){if(this.disposed)return;this.setEnabled(false);this.disposed=true;this._release();}
 }

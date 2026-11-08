@@ -1,0 +1,72 @@
+[
+  {
+    "lod": "high",
+    "material": "fir_tree_01_bark",
+    "triangles": 1295,
+    "sourceTriangles": 21422,
+    "error": 0.0011956312227994204
+  },
+  {
+    "lod": "high",
+    "material": "fir_tree_01_trunk_a",
+    "triangles": 1481,
+    "sourceTriangles": 84308,
+    "error": 0.0004291666846256703
+  },
+  {
+    "lod": "high",
+    "material": "fir_tree_01_twig",
+    "triangles": 31268,
+    "sourceTriangles": 4066119,
+    "error": 0,
+    "method": "source-axis twig clusters with original photographed twig alpha atlas",
+    "coverage": {
+      "sourceBranches": 7817,
+      "retainedBranches": 7817,
+      "occupiedCells": 651,
+      "retainedCells": 651
+    }
+  },
+  {
+    "lod": "high",
+    "material": "fir_tree_01_dead_branches",
+    "triangles": 1783,
+    "sourceTriangles": 4970,
+    "error": 0.0005722002242691815
+  },
+  {
+    "lod": "low",
+    "material": "fir_tree_01_bark",
+    "triangles": 176,
+    "sourceTriangles": 21422,
+    "error": 0.0021520601585507393
+  },
+  {
+    "lod": "low",
+    "material": "fir_tree_01_trunk_a",
+    "triangles": 220,
+    "sourceTriangles": 84308,
+    "error": 0.0019567827694118023
+  },
+  {
+    "lod": "low",
+    "material": "fir_tree_01_twig",
+    "triangles": 7424,
+    "sourceTriangles": 4066119,
+    "error": 0,
+    "method": "source-axis twig clusters with original photographed twig alpha atlas",
+    "coverage": {
+      "sourceBranches": 7817,
+      "retainedBranches": 1856,
+      "occupiedCells": 651,
+      "retainedCells": 651
+    }
+  },
+  {
+    "lod": "low",
+    "material": "fir_tree_01_dead_branches",
+    "triangles": 233,
+    "sourceTriangles": 4970,
+    "error": 0.0020117205567657948
+  }
+]

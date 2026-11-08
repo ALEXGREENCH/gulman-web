@@ -92,6 +92,7 @@ export class MotionController {
     add(18, this.sprintBlend * 0.065 + breath + this.inertia, this.lean * 0.20 + gait * 0.007, this.lean + recoil * 0.23);
     add(2, -breath * 0.5 - this.inertia * 0.45, -gait * 0.005, -this.lean * 0.40);
     add(3, -this.inertia * 0.3, -gait * 0.006, -this.lean * 0.20 + settle * 0.003);
+    if (character.grenadeThrow?.active) { this._poses.set(character, poses); this._lastCharacter = character; return this; }
     add(10, -ads * 0.11 + reach * 0.10 + recoil * 0.72 + breath * 0.3, gait * 0.006, -this.sprintBlend * 0.075);
     add(11, -ads * 0.10 + reach * 0.43 + rack * 0.14, -gait * 0.006, -reach * 0.28);
     add(12, -breath * 0.4 + recoil * 0.20, 0, settle * 0.005);

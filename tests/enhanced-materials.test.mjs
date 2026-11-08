@@ -32,7 +32,7 @@ test('world surface classifier excludes atlas facades, water, art and character 
 
 test('all CC0 derivatives have correct checksums, source URLs and bounded download size', async () => {
   let total = 0;
-  assert.equal(Object.keys(manifest.materials).length, 10);
+  assert.equal(Object.keys(manifest.materials).length, 12);
   for (const record of Object.values(manifest.materials)) {
     assert.equal(record.license, 'CC0-1.0');
     assert.ok(record.tileMeters > 0 && record.tileMeters < 10);
@@ -45,7 +45,7 @@ test('all CC0 derivatives have correct checksums, source URLs and bounded downlo
       total += bytes.length;
     }
   }
-  assert.ok(total < 8 * 1024 * 1024, `${total} bytes`);
+  assert.ok(total < 10 * 1024 * 1024, `${total} bytes`);
 });
 
 test('library is lazy, creates independent materials, and frees only its owned maps', async () => {
@@ -57,7 +57,7 @@ test('library is lazy, creates independent materials, and frees only its owned m
   original.addEventListener('dispose', () => originalDisposals++);
   original.map.addEventListener('dispose', () => originalDisposals++);
   await Promise.all([library.load(), library.load()]);
-  assert.equal(f.textures.length, 30);
+  assert.equal(f.textures.length, 36);
   const material = library.create(original, 'BEACH.JPG', { waterLevel: -4.1 });
   assert.ok(material.isMeshStandardMaterial);
   assert.notEqual(material, original);
