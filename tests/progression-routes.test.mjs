@@ -83,6 +83,31 @@ test('level 3 starts at the original spawn, crosses its rock/roof/beam route, co
   } finally { dispose(); }
 });
 
+test('the adapted player can mount the second Acropolis crossing off center and stop on it', async () => {
+  const { world, dispose } = await levelWorld(3);
+  try {
+    for (const [hz, x, yaw] of [[25, 12.55, Math.PI - .012], [60, 13, Math.PI], [120, 12.24, Math.PI + .012]]) {
+      const z = 26.75, dt = 1 / hz;
+      const position = new THREE.Vector3(x, world.ground(x, -4, z) + .05, z);
+      const velocity = new THREE.Vector3();
+      let grounded = false;
+      const tick = speed => {
+        velocity.x = Math.sin(yaw) * speed;
+        velocity.z = Math.cos(yaw) * speed;
+        ({ onGround: grounded } = world.move(position, velocity, dt, grounded));
+      };
+      for (let i = 0; i < hz / 2; i++) tick(0);
+      for (let i = 0; i < hz * 3 && position.z > 15; i++) tick(8);
+      assert.ok(grounded && position.z <= 15 && position.y > -2.6, `${hz} Hz approach at ${position.toArray()}`);
+      const height = position.y;
+      for (let i = 0; i < hz; i++) tick(0);
+      assert.ok(grounded && position.y > height - .12, `${hz} Hz stop at ${position.toArray()}`);
+      for (let i = 0; i < hz * 5 && position.z > -10; i++) tick(8);
+      assert.ok(grounded && position.z <= -10 && position.y > 6.4, `${hz} Hz roof at ${position.toArray()}`);
+    }
+  } finally { dispose(); }
+});
+
 test('level 4 starts at the original spawn, crosses its corrected roof route, collects the key and returns to the exit', async t => {
   const old = await levelWorld(4, 50);
   try {

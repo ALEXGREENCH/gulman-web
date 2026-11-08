@@ -1,8 +1,6 @@
 import { Triangle, Vector3 } from 'three';
 
-/** The Acropolis crossing is two 11 cm sloping beams with a 40 cm gap.
- * Bridge that gap for footsteps using their actual top endpoints. The visual
- * model stays untouched; stepping off the outer edge still means a fall. */
+/** Continuous footing for the second Acropolis crossing, up to the Venus roof. */
 export function ropeSupport(levelId, modelData) {
   if (levelId !== 3) return undefined;
   const beams=['dx244','dx245'].map(name=>modelData.meshes.find(mesh=>mesh.name===name));
@@ -19,9 +17,20 @@ export function ropeSupport(levelId, modelData) {
   });
   const low=points.reduce((a,b)=>a.y<b.y?a:b),high=points.reduce((a,b)=>a.y>b.y?a:b);
   const near=points.filter(p=>p.z>low.z-.2).reduce((a,b)=>a.y>b.y?a:b);
-  const left=Math.min(...points.map(p=>p.x))-.025,right=Math.max(...points.map(p=>p.x))+.025;
-  const a=new Vector3(left,near.y+.004,near.z),b=new Vector3(right,a.y,a.z);
-  const c=new Vector3(left,high.y+.004,high.z),d=new Vector3(right,c.y,c.z);
-  return {support:[new Triangle(a,b,c),new Triangle(b,d,c)],
+  // Allow for a slightly off-center approach. Contact with the outside edge
+  // of a single rail pushes the capsule or ellipsoid away from the crossing.
+  const left=Math.min(...points.map(p=>p.x))-.45,right=Math.max(...points.map(p=>p.x))+.45;
+  const joinZ=25.65;
+  const joinY=near.y+(high.y-near.y)*(joinZ-near.z)/(high.z-near.z)+.004;
+  // The transverse log is almost a metre above the rope anchor. Start on
+  // its forward side and descend onto the slope without a drop at the eave.
+  const rows=[[-5.16,26.60],[joinY,joinZ],[high.y+.004,high.z]]
+    .map(([y,z])=>[new Vector3(left,y,z),new Vector3(right,y,z)]);
+  const support=[];
+  for(let i=1;i<rows.length;i++){
+    const [a,b]=rows[i-1],[c,d]=rows[i];
+    support.push(new Triangle(a,b,c),new Triangle(b,d,c));
+  }
+  return {support,
     exclude:points=>points.every(p=>p.x>=left&&p.x<=right)&&removed.has(key(points))};
 }

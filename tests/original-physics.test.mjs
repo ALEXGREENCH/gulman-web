@@ -5,6 +5,7 @@ import * as T from 'three';
 import { WorldCollision } from '../js/collision.js';
 import { OriginalMovement } from '../js/original-physics.js';
 import { mergeWorldMeshes } from '../js/merge-world.js';
+import { selectInteraction } from '../js/progression.js';
 import { ropeSupport } from '../js/rope-support.js';
 
 function flatWorld(wall=false) {
@@ -63,14 +64,19 @@ test('swept DCE collider slides along a thin wall and also stops against live ac
   assert.ok(body.p.z>2.5);
 });
 
-test('actual Acropolis ropes carry both edges and the gap at 25, 60 and 120 Hz',async()=>{
+async function acropolisWorld() {
   const root=new URL('../',import.meta.url);
   const manifest=JSON.parse(await readFile(new URL('assets/manifest.json',root)));
   const level=manifest.levels.find(level=>level.id===3);
   const data=JSON.parse(await readFile(new URL(manifest.models[level.model],root)));
   const materials=Object.fromEntries(Object.keys(data.materials).map(name=>[name,new T.MeshBasicMaterial()]));
   const group=mergeWorldMeshes(data,materials,new T.MeshBasicMaterial());group.scale.setScalar(.01);
-  const world=new WorldCollision().setWorld(group,ropeSupport(3,data));
+  const world=new WorldCollision({radius:.28,height:1.65,stepHeight:.45}).setWorld(group,ropeSupport(3,data));
+  return {level,world};
+}
+
+test('actual Acropolis ropes carry both edges and the gap at 25, 60 and 120 Hz',async()=>{
+  const {world}=await acropolisWorld();
   for(const [hz,x] of [[25,12.24],[60,12.55],[120,12.86]]){
     const {p,tick}=driver(world,[x,-5.1,26.5],hz);
     let supported=0,frames=0;
@@ -81,4 +87,29 @@ test('actual Acropolis ropes carry both edges and the gap at 25, 60 and 120 Hz',
   const edge=driver(world,[12.55,0,8]);
   for(let i=0;i<160;i++)edge.tick({strafe:1});
   assert.ok(edge.p.y<-2,'stepping off the side must still allow a fall');
+});
+
+test('Acropolis log approach reaches the Venus roof with original movement',async()=>{
+  const {level,world}=await acropolisWorld();
+  const items=level.entities.map(entry=>({entry,pos:new T.Vector3(entry.x,entry.y,entry.z).multiplyScalar(.01)}));
+  const venus=items.find(item=>item.entry.command==='GameKey');
+  for(const [hz,x] of [[25,12.10],[60,12.55],[120,13]]){
+    // Start on the crosswise log beside the two ropes, as in the reported fall.
+    const z=26.75, y=world.ground(x,0,z);
+    assert.ok(y>-5.5&&y<-5,`expected the approach log at x=${x}, got ${y}`);
+    const {motion,p,tick}=driver(world,[x,y+.05,z],hz);
+    for(let frame=0;frame<hz*55&&p.z>-9&&p.y>-8;frame++){
+      tick({forward:1,yaw:Math.PI,shift:true});
+    }
+    assert.ok(p.z<=-9&&p.y>6&&motion.onGround,`${hz} Hz, x=${x}: expected the roof, got ${p.toArray()}`);
+
+    let target=null;
+    for(let frame=0;frame<hz*20&&p.y>5;frame++){
+      const yaw=Math.atan2(venus.pos.x-p.x,venus.pos.z-p.z);
+      tick({forward:1,yaw});
+      target=selectInteraction(items,p,world,{totalKeys:1});
+      if(target===venus)break;
+    }
+    assert.equal(target,venus,`${hz} Hz: Venus must be reachable from the roof at ${p.toArray()}`);
+  }
 });
