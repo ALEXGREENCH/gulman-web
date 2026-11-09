@@ -29,7 +29,7 @@ function orientation(direction, up) {
  * loadModel(originalPath, true) must return a fresh Group in RAW z-up units.
  * The result is y-up, feet at zero in the standing pose; +Z is forward.
  * update(dt, moving, dead) also accepts an options object as its second arg:
- * {moving, running, dead, airborne, crouching, direction:'forward'|'back'|'left'|'right'}.
+ * {moving, running, dead, airborne, crouching, enhanced, direction:'forward'|'back'|'left'|'right'}.
  */
 export async function createCharacter(name, loadModel, getJSON = defaultGetJSON, options = {}) {
   const data = await rigData(getJSON);
@@ -89,6 +89,12 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
         rotations: new Map([...current].map(([id, q]) => [id, q.clone()])),
       };
     });
+  }
+  // These source clips begin with the same reference pose. Playing it every
+  // cycle jerks the torso and arms out of the authored run or crouch.
+  const enhancedClips = { ...clips };
+  for (const key of ['runf', 'runl', 'runr', 'duck', 'inair']) {
+    if (clips[key]?.length > 1) enhancedClips[key] = clips[key].slice(1);
   }
   const stand = clips.stand?.[0];
   if (stand) for (const [id, q] of stand.rotations) bones.get(id).quaternion.copy(q);
@@ -248,18 +254,23 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     const suffix = { back: 'b', left: 'l', right: 'r', forward: 'f' }[s.direction] ?? 'f';
     const next = s.dead ? 'death' : s.airborne ? 'inair' : s.crouching ? 'duck' : s.moving ? `${s.running === false ? 'move' : 'run'}${suffix}` : 'stand';
     if (next !== clipName) { clipName = next; elapsed = 0; }
-    elapsed += Math.max(0, Math.min(dt, 0.1));
-    const clip = clips[clipName] ?? clips.stand;
+    // The stock idle cycle takes only 300 ms. Keep a small, slower motion
+    // around its opening pose so the torso and gun stay steady in Enhanced.
+    const quietIdle = s.enhanced && clipName === 'stand' && stand;
+    elapsed += Math.max(0, Math.min(dt, 0.1)) * (quietIdle ? .5 : 1);
+    const clip = (s.enhanced ? enhancedClips : clips)[clipName] ?? clips.stand;
     if (!clip?.length) return;
     const duration = clip.reduce((sum, frame) => sum + frame.duration, 0);
-    let time = clipName === 'death' ? Math.min(elapsed, duration - 0.00001) : elapsed % duration;
+    const holdLast = clipName === 'death' || (s.enhanced && clipName === 'inair');
+    let time = holdLast ? Math.min(elapsed, duration - 0.00001) : elapsed % duration;
     let index = 0;
     while (index < clip.length - 1 && time >= clip[index].duration) time -= clip[index++].duration;
     const current = clip[index];
-    const nextFrame = clip[clipName === 'death' ? Math.min(index + 1, clip.length - 1) : (index + 1) % clip.length];
+    const nextFrame = clip[holdLast ? Math.min(index + 1, clip.length - 1) : (index + 1) % clip.length];
     const blend = time / current.duration;
     for (const [id, bone] of bones) {
       targetRotation.copy(current.rotations.get(id)).slerp(nextFrame.rotations.get(id), blend);
+      if (quietIdle) targetRotation.slerp(stand.rotations.get(id), .75);
       bone.quaternion.slerp(targetRotation, 1 - Math.exp(-dt * 20));
     }
     if (throwTime >= 0) {

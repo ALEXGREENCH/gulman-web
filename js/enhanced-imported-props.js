@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {mergeGeometries} from '../vendor/addons/utils/BufferGeometryUtils.js?v=20261109-10';
-import {classifyProp,meshPlacement} from './enhanced-props.js?v=20261109-10';
+import {classifyProp,meshPlacement,solidPropPlacement} from './enhanced-props.js?v=20261109-15';
 
 const MANIFEST='assets/enhanced/props/manifest.json';
 const KINDS=new Set(['crate','barrel','table','chair']);
@@ -11,7 +11,8 @@ export function importedPropPlacements(modelData){
   const result=[];
   for(const mesh of modelData?.meshes||[]){
     const kind=classifyProp(mesh,modelData);if(!KINDS.has(kind))continue;
-    result.push({mesh,kind,placement:meshPlacement(mesh)});
+    const placement=kind==='crate'||kind==='barrel'?solidPropPlacement(mesh,kind):meshPlacement(mesh);
+    if(placement)result.push({mesh,kind,placement});
   }
   return result;
 }
@@ -36,7 +37,10 @@ export function propInstanceMatrix(record,prototypeBounds,prototypeBack=0){
     const c=Math.abs(Math.cos(angle)),s=Math.abs(Math.sin(angle));
     const fit=Math.min(p.size.x/(c*size.x+s*size.z),p.size.z/(s*size.x+c*size.z));
     object.scale.set(fit,p.size.y/size.y,fit);
-  }else object.scale.set(p.size.x/size.x,p.size.y/size.y,p.size.z/size.z);
+  }else{
+    if(p.orientation)object.quaternion.copy(p.orientation);
+    object.scale.copy(p.size).divide(size);
+  }
   object.updateMatrix();return object.matrix.clone();
 }
 
@@ -138,15 +142,19 @@ export class EnhancedImportedProps {
     if(this.disposed||!this.ready||!camera)return;
     if(time!==undefined&&quality===this.quality&&time-(this.lastUpdate??-Infinity)<.25)return;
     this.lastUpdate=time;
+    // Give the current near meshes a small advantage at the distance and
+    // count limits so a minor camera movement cannot keep flipping their LOD.
+    const nearBias=quality===this.quality?1.5:0;
     if(quality!==this.quality)for(const texture of this.textures){texture.anisotropy=quality==='low'?1:4;texture.needsUpdate=true;}
     this.quality=quality;
     const point=camera.getWorldPosition?camera.getWorldPosition(new THREE.Vector3()):camera.position;
     const low=quality==='low',radius=low?20:48,limits=low?{crate:24,barrel:32,table:8,chair:16}:{crate:96,barrel:96,table:32,chair:64};
     for(const batch of this.batches){
-      const sorted=batch.records.map(record=>({record,distance:point.distanceToSquared(record.position)})).sort((a,b)=>a.distance-b.distance);
+      const sorted=batch.records.map(record=>({record,distance:point.distanceTo(record.position)-(record.near?nearBias:0)})).sort((a,b)=>a.distance-b.distance);
       let near=0,far=0;
       for(const{record,distance}of sorted){
-        const isNear=distance<radius*radius&&near<limits[batch.kind],index=isNear?near++:far++;
+        const isNear=distance<radius&&near<limits[batch.kind],index=isNear?near++:far++;
+        record.near=isNear;
         for(const mesh of isNear?batch.high:batch.low)mesh.setMatrixAt(index,record.matrix);
       }
       for(const mesh of batch.high){mesh.count=near;mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();}

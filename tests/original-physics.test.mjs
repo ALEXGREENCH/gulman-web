@@ -79,10 +79,14 @@ test('actual Acropolis ropes carry both edges and the gap at 25, 60 and 120 Hz',
   const {world}=await acropolisWorld();
   for(const [hz,x] of [[25,12.24],[60,12.55],[120,12.86]]){
     const {p,tick}=driver(world,[x,-5.1,26.5],hz);
-    let supported=0,frames=0;
-    while(p.z>-7.5&&frames<hz*25){supported+=Number(tick({forward:1,yaw:Math.PI}).onGround);frames++;}
+    let supported=0,onRope=0;
+    for(let frame=0;p.z>-7.5&&frame<hz*25;frame++){
+      const state=tick({forward:1,yaw:Math.PI});
+      // The log is higher than the rope, so stepping down can briefly go airborne.
+      if(p.z<25){supported+=Number(state.onGround);onRope++;}
+    }
     assert.ok(p.z<=-7.5&&p.y>5.6,`${hz} Hz, x=${x}: ${p.toArray()}`);
-    assert.ok(supported/frames>.95,'bridge should not repeatedly detach the player');
+    assert.ok(supported/onRope>.95,'bridge should not repeatedly detach the player');
   }
   const edge=driver(world,[12.55,0,8]);
   for(let i=0;i<160;i++)edge.tick({strafe:1});

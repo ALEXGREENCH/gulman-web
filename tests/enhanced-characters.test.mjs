@@ -37,6 +37,46 @@ function sourceHash(character) {
   return hash.digest('hex');
 }
 
+test('Enhanced steadies the idle rig, removes the abrupt loop pose and holds a long fall pose', async () => {
+  const character = await make('Gulman');
+  const torso = character.bones.get(1), shoulder = character.bones.get(10), knee = character.bones.get(6);
+  const tick = state => character.update(1 / 60, { enhanced: true, ...state });
+  const materials = createEnhancedCharacterMaterials();
+  const skin = createEnhancedCharacterSkin(character, 'Gulman', { materials });
+  try {
+    character.attachWeapon(await assets.model('models/weapons/weaponpistol.3ds', true));
+    for (let i = 0; i < 60; i++) tick();
+    let previousMuzzle = character.weaponMuzzlePosition();
+    let idleMotion = 0;
+    for (let i = 0; i < 120; i++) {
+      tick();
+      const muzzle = character.weaponMuzzlePosition();
+      idleMotion = Math.max(idleMotion, muzzle.distanceTo(previousMuzzle));
+      previousMuzzle = muzzle;
+    }
+    assert.ok(idleMotion > .0005 && idleMotion < .003, `steady idle still animates, peak muzzle step ${idleMotion} m`);
+
+    for (const state of [{moving: true, running: true}, {moving: true, running: true, direction: 'left'}, {moving: true, running: true, direction: 'right'}, {crouching: true}]) {
+      for (let i = 0; i < 60; i++) tick(state);
+      const startTorso = torso.quaternion.clone(), startShoulder = shoulder.quaternion.clone(), startKnee = knee.quaternion.clone();
+      let kneeMotion = 0;
+      for (let i = 0; i < 180; i++) {
+        tick(state);
+        assert.ok(torso.quaternion.angleTo(startTorso) < .03, 'torso must not return to the shared reference pose');
+        assert.ok(shoulder.quaternion.angleTo(startShoulder) < .35, 'shoulder follows the animation without returning to the reference pose');
+        kneeMotion = Math.max(kneeMotion, knee.quaternion.angleTo(startKnee));
+      }
+      if (state.running) assert.ok(kneeMotion > .5, 'running still animates the legs');
+    }
+    for (let i = 0; i < 150; i++) tick({ airborne: true });
+    const fallenTorso = torso.quaternion.clone();
+    for (let i = 0; i < 120; i++) {
+      tick({ airborne: true });
+      assert.ok(torso.quaternion.angleTo(fallenTorso) < .001, 'a long fall holds its last pose');
+    }
+  } finally { skin.dispose(); materials.dispose(); character.dispose(); }
+});
+
 test('firearm pose closes three fingers, keeps a trigger finger and opposes the thumb without moving the wrist', () => {
   const source = humanAnatomy.parts.rightHand;
   const pose = point => poseAnatomicalHandPoint(source, ...point, true);

@@ -13,6 +13,68 @@ export function meshPlacement(mesh, scale=.01) {
   return {position:new THREE.Vector3(center.x,box.min.y,center.z),size,yaw,width:maxX-minX,length:maxZ-minZ,box};
 }
 
+/** Recover the axes of the authored obstacle before fitting a replacement. */
+export function solidPropPlacement(mesh, kind) {
+  const points = [];
+  for (let i = 0; i < mesh.vertices.length; i += 3) {
+    points.push(new THREE.Vector3().fromArray(mesh.vertices, i).multiplyScalar(.01));
+  }
+  const axes = [], normal = new THREE.Vector3(), edge = new THREE.Vector3();
+  for (let i = 0; i < mesh.indices.length; i += 3) {
+    const a = points[mesh.indices[i]], b = points[mesh.indices[i + 1]], c = points[mesh.indices[i + 2]];
+    normal.subVectors(b, a).cross(edge.subVectors(c, a));
+    const area = normal.length();
+    if (area < 1e-6) continue;
+    normal.divideScalar(area);
+    const axis = axes.find(({ direction }) => Math.abs(direction.dot(normal)) > .99995);
+    if (axis) axis.area += area;
+    else axes.push({ direction: normal.clone(), area });
+  }
+
+  const up = new THREE.Vector3(0, 1, 0);
+  const orientation = new THREE.Quaternion();
+  if (kind === 'crate') {
+    if (axes.length !== 3) return null;
+    const [y, x, z] = axes.map(axis => axis.direction).sort((a, b) => Math.abs(b.y) - Math.abs(a.y));
+    if (Math.max(Math.abs(x.dot(y)), Math.abs(z.dot(y)), Math.abs(x.dot(z))) > .01) return null;
+    if (y.y < 0) y.negate();
+    if (x.x < 0) x.negate();
+    z.crossVectors(x, y).normalize();
+    x.crossVectors(y, z);
+    orientation.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  } else {
+    axes.sort((a, b) => b.area - a.area);
+    // A barrel's two parallel end caps share one normal and dominate its side faces.
+    if (axes.length < 4 || axes[0].area < axes[1].area * 1.5) return null;
+    const axis = axes[0].direction;
+    if (axis.y < 0) axis.negate();
+    orientation.setFromUnitVectors(up, axis);
+  }
+
+  const inverse = orientation.clone().invert(), box = new THREE.Box3().setFromPoints(points);
+  for (const point of points) point.applyQuaternion(inverse);
+  const bounds = new THREE.Box3().setFromPoints(points);
+  const size = bounds.getSize(new THREE.Vector3());
+  if (Math.min(size.x, size.y, size.z) < .01) return null;
+  if (kind === 'crate') {
+    // BOX.JPG also paints groups of objects and irregular debris. Keep their
+    // source geometry unless its vertices define all eight corners of a box.
+    const corners = new Set();
+    for (const point of points) {
+      let corner = 0;
+      for (const [bit, axis] of ['x', 'y', 'z'].entries()) {
+        if (Math.abs(point[axis] - bounds.max[axis]) < .015) corner |= 1 << bit;
+        else if (Math.abs(point[axis] - bounds.min[axis]) >= .015) return null;
+      }
+      corners.add(corner);
+    }
+    if (corners.size !== 8) return null;
+  }
+  const position = bounds.getCenter(new THREE.Vector3());
+  position.y = bounds.min.y;
+  return { position: position.applyQuaternion(orientation), size, orientation, box };
+}
+
 function sourceKind(name) {
   name=String(name).toLowerCase();
   if(/^lejak2?\.jpg$/.test(name))return 'lounger';
@@ -99,14 +161,37 @@ export function buildEnhancedProps(modelData,library,{skipKinds=new Set(),skipMe
   for(const mesh of modelData.meshes){
     if(mesh.groups?.length!==1)continue;
     const name=mesh.groups[0].material,kind=classifyProp(mesh,modelData);if(!kind||kind==='chair'||skipKinds.has(kind)||skipMeshes.has(mesh))continue;
-    const placement=meshPlacement(mesh);if(placement.size.length()<.2)continue;
+    const placement=kind==='crate'||kind==='barrel'?solidPropPlacement(mesh,kind):meshPlacement(mesh);
+    if(!placement||placement.size.length()<.2)continue;
     if(!batches.has(kind))batches.set(kind,[]);batches.get(kind).push(placement);hidden.add(name);replacedMeshes.add(mesh);
   }
-  const obj=new THREE.Object3D();let replacements=0;
+  const obj=new THREE.Object3D(),origin=new THREE.Vector3(),prototypeSize=new THREE.Vector3(),offset=new THREE.Vector3();
+  let replacements=0;
   for(const[kind,placements]of batches){
     const parts=prototype(kind,m);replacements+=placements.length;
+    const solid=kind==='crate'||kind==='barrel';
+    if(solid){
+      const bounds=new THREE.Box3();
+      for(const part of parts)bounds.union(part.geometry.boundingBox);
+      bounds.getCenter(origin);origin.y=bounds.min.y;
+      bounds.getSize(prototypeSize);
+    }
     for(const part of parts){const batch=new THREE.InstancedMesh(part.geometry,part.material,placements.length);batch.name='enhanced:'+kind;batch.userData.graphicsOwned=true;batch.userData.collision=false;batch.castShadow=true;batch.receiveShadow=true;
-      placements.forEach((p,i)=>{obj.position.copy(p.position);obj.rotation.set(0,kind==='lounger'?p.yaw:0,0);if(kind==='lounger')obj.scale.set(p.width/.98,p.size.y/.77,p.length/1.76);else if(kind==='parasol')obj.scale.set(p.size.x/3,p.size.y/2.79,p.size.z/3);else if(kind==='table')obj.scale.set(p.size.x/1.3,p.size.y/.78,p.size.z/1.3);else if(kind==='barrel')obj.scale.set(p.size.x/.87,p.size.y/1.03,p.size.z/.87);else obj.scale.set(p.size.x/1.1,p.size.y/1.06,p.size.z/1.1);obj.updateMatrix();batch.setMatrixAt(i,obj.matrix);});batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();group.add(batch);
+      placements.forEach((p,i)=>{
+        obj.position.copy(p.position);
+        if(solid){
+          obj.quaternion.copy(p.orientation);
+          obj.scale.copy(p.size).divide(prototypeSize);
+          obj.position.sub(offset.copy(origin).multiply(obj.scale).applyQuaternion(p.orientation));
+        }else{
+          obj.rotation.set(0,kind==='lounger'?p.yaw:0,0);
+          if(kind==='lounger')obj.scale.set(p.width/.98,p.size.y/.77,p.length/1.76);
+          else if(kind==='parasol')obj.scale.set(p.size.x/3,p.size.y/2.79,p.size.z/3);
+          else obj.scale.set(p.size.x/1.3,p.size.y/.78,p.size.z/1.3);
+        }
+        obj.updateMatrix();batch.setMatrixAt(i,obj.matrix);
+      });
+      batch.instanceMatrix.needsUpdate=true;batch.computeBoundingSphere();group.add(batch);
     }
   }
   const retainedMeshes=modelData.meshes.filter(mesh=>!replacedMeshes.has(mesh)&&mesh.groups?.some(part=>hidden.has(part.material)));

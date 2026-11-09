@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import { WorldCollision } from '../js/collision.js';
+import { OriginalMovement } from '../js/original-physics.js';
 import { mergeWorldMeshes } from '../js/merge-world.js';
 import { ropeSupport } from '../js/rope-support.js';
 import { maxSlopeForLevel, jumpSpeedForLevel, selectInteraction } from '../js/progression.js';
@@ -16,8 +17,9 @@ async function levelWorld(id, maxSlope = maxSlopeForLevel(id)) {
   const materials = Object.fromEntries(Object.keys(data.materials).map(name => [name, new THREE.MeshBasicMaterial()]));
   const fallback = new THREE.MeshBasicMaterial(), group = mergeWorldMeshes(data, materials, fallback);
   group.scale.setScalar(.01);
-  const world = new WorldCollision({ radius: .28, height: 1.65, stepHeight: .45, maxSlope }).setWorld(group, ropeSupport(id,data));
-  return { level, world, modelSha256: createHash('sha256').update(source).digest('hex'), dispose() { world.clear(); for (const child of group.children) child.geometry.dispose(); for (const material of Object.values(materials)) material.dispose(); fallback.dispose(); } };
+  const ropes = ropeSupport(id, data);
+  const world = new WorldCollision({ radius: .28, height: 1.65, stepHeight: .45, maxSlope }).setWorld(group, ropes);
+  return { level, world, ropes, modelSha256: createHash('sha256').update(source).digest('hex'), dispose() { world.clear(); for (const child of group.children) child.geometry.dispose(); for (const material of Object.values(materials)) material.dispose(); fallback.dispose(); } };
 }
 function actor(world, start, jumpSpeed = 8, dt = 1 / 60) {
   const position = new THREE.Vector3(...start), velocity = new THREE.Vector3(); let onGround = false;
@@ -104,6 +106,41 @@ test('the adapted player can mount the second Acropolis crossing off center and 
       assert.ok(grounded && position.y > height - .12, `${hz} Hz stop at ${position.toArray()}`);
       for (let i = 0; i < hz * 5 && position.z > -10; i++) tick(8);
       assert.ok(grounded && position.z <= -10 && position.y > 6.4, `${hz} Hz roof at ${position.toArray()}`);
+    }
+  } finally { dispose(); }
+});
+
+test('both Acropolis crossings support a pause and a slightly angled approach in both movement modes', async () => {
+  const { world, ropes, dispose } = await levelWorld(3);
+  try {
+    const spans = [
+      { start: [64, -7.83, 29.37], axis: 'x', yaw: Math.atan2(-44.65, -3.15), pause: 44, end: 20.3, roof: -5.7 },
+      { start: [12.55, -5.09, 26.75], axis: 'z', yaw: Math.PI, pause: 14, end: -9.4, roof: 6.2 },
+    ];
+    for (const hz of [25, 60, 120]) for (const classic of [false, true]) for (const span of spans) {
+      const position = new THREE.Vector3(...span.start), velocity = new THREE.Vector3();
+      const motion = new OriginalMovement(world), dt = 1 / hz, aim = span.yaw + .06;
+      let grounded = false;
+      const tick = forward => {
+        const yaw = grounded ? ropes.heading(position, aim, forward, 0) : aim;
+        if (classic) {
+          ({ onGround: grounded } = motion.move(position, velocity, dt, { forward, yaw }));
+        } else {
+          velocity.x = Math.sin(yaw) * forward * 8;
+          velocity.z = Math.cos(yaw) * forward * 8;
+          ({ onGround: grounded } = world.move(position, velocity, dt, grounded));
+        }
+      };
+      const check = `${hz} Hz, ${classic ? 'DCE' : 'capsule'}, ${span.axis} span`;
+      for (let i = 0; i < hz / 2; i++) tick(0);
+      for (let i = 0; i < hz * 15 && position[span.axis] > span.pause; i++) tick(1);
+      assert.ok(grounded && position[span.axis] <= span.pause, `${check}: crossing at ${position.toArray()}`);
+      for (let i = 0; i < hz; i++) tick(0);
+      const settled = position.clone();
+      for (let i = 0; i < hz * 5; i++) tick(0);
+      assert.ok(grounded && settled.distanceTo(position) < .02, `${check}: idle drift from ${settled.toArray()} to ${position.toArray()}`);
+      for (let i = 0; i < hz * 15 && position[span.axis] > span.end; i++) tick(1);
+      assert.ok(grounded && position[span.axis] <= span.end && position.y > span.roof, `${check}: roof at ${position.toArray()}`);
     }
   } finally { dispose(); }
 });

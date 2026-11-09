@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {EnhancedMaterialLibrary} from './enhanced-materials.js?v=20261109-10';
 import {EnhancedWater} from './enhanced-water.js?v=20261109-10';
-import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261109-10';
-import {EnhancedImportedProps} from './enhanced-imported-props.js?v=20261109-10';
+import {buildEnhancedProps,meshPlacement} from './enhanced-props.js?v=20261109-15';
+import {EnhancedImportedProps} from './enhanced-imported-props.js?v=20261109-15';
 import {EnhancedVegetation} from './enhanced-vegetation.js?v=20261109-10';
 import {buildEnhancedLandscape,isEnhancedLandscapeMaterial} from './enhanced-landscape.js?v=20261109-10';
 import {remainingEnhancedSource,selectEnhancedSourceMaterials} from './enhanced-source.js?v=20261109-10';

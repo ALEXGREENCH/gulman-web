@@ -327,6 +327,34 @@ test('sun shadow frustum follows distant and elevated players, covers visible ne
   graphics.dispose(); weapon.geometry.dispose(); weapon.material.dispose();
 });
 
+test('stationary objects keep their shadow texel alignment when the player moves and turns', () => {
+  const graphics = manager(), render = renderer(), scene = new THREE.Scene();
+  const sun = new THREE.DirectionalLight(); sun.position.set(80, 180, 50); scene.add(sun);
+  const camera = new THREE.PerspectiveCamera();
+  const crate = new THREE.Vector3(45, 3, -14);
+  graphics.applyRenderer(render).applyScene(scene);
+  const shadowPixel = (player, angle) => {
+    camera.rotation.y = angle;
+    graphics.update(player, { dt: .1, camera });
+    scene.updateMatrixWorld(true);
+    sun.shadow.updateMatrices(sun);
+    return crate.clone().applyMatrix4(sun.shadow.matrix).multiplyScalar(sun.shadow.mapSize.x);
+  };
+  try {
+    for (const mode of ['original', 'enhanced']) {
+      graphics.setMode(mode);
+      for (const quality of ['high', 'low']) {
+        graphics.setQuality(quality);
+        const before = shadowPixel(new THREE.Vector3(42, 2, -13), .14);
+        const after = shadowPixel(new THREE.Vector3(42.031, 2.107, -12.993), .21);
+        for (const delta of [after.x - before.x, after.y - before.y]) {
+          assert.ok(Math.abs(delta - Math.round(delta)) < 1e-8, `${mode}/${quality}: moved ${delta} texels`);
+        }
+      }
+    }
+  } finally { graphics.dispose(); }
+});
+
 test('automatic quality responds to sustained slow frames, but original/economy stay direct', () => {
   const graphics = manager();
   const render = renderer();

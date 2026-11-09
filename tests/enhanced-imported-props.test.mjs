@@ -9,7 +9,8 @@ import {buildEnhancedProps,classifyProp} from '../js/enhanced-props.js';
 const root=new URL('../',import.meta.url);
 const manifest=JSON.parse(await readFile(new URL('assets/manifest.json',root),'utf8'));
 function source(name,map,size=[1,1,1],position=[0,0,0]){
-  const geometry=new THREE.BoxGeometry(...size.map(v=>v*100));geometry.translate(position[0]*100,(position[1]+size[1]/2)*100,position[2]*100);
+  const geometry=map==='barrel'?new THREE.CylinderGeometry(size[0]*50,size[2]*50,size[1]*100,16):new THREE.BoxGeometry(...size.map(v=>v*100));
+  geometry.translate(position[0]*100,(position[1]+size[1]/2)*100,position[2]*100);
   const mesh={name,vertices:Array.from(geometry.attributes.position.array),indices:Array.from(geometry.index.array),groups:[{material:map,start:0,count:geometry.index.count}]};geometry.dispose();return mesh;
 }
 function data(meshes){return{meshes,materials:Object.fromEntries(['box','barrel','lejak','table'].map(k=>[k,{originalMap:{box:'BOX.JPG',barrel:'БОЧКА-2.JPG',lejak:'LEJAK.JPG',table:'TABLE.JPG'}[k]}]))};}
@@ -62,6 +63,18 @@ test('distance LOD retains every object while enforcing the low-quality near bud
   layer.dispose();
 });
 
+test('an imported crate holds its near mesh while the camera rocks across the distance cutoff',async()=>{
+  const layer=new EnhancedImportedProps({modelData:data([source('crate','box')]),manifest:pack,loadModel:async()=>model()});
+  await layer.load();
+  const camera=new THREE.PerspectiveCamera(),batch=layer.batches[0];
+  for(const [i,x,expected] of [[0,19.8,1],[1,20.3,1],[2,19.9,1],[3,22,0],[4,20.3,0],[5,19.9,1]]){
+    camera.position.x=x;layer.update(camera,'low',i*.3);
+    assert.equal(batch.high[0].count,expected);
+    assert.equal(batch.low[0].count,1-expected);
+  }
+  layer.dispose();
+});
+
 test('instance envelope stays inside the source bounds, including rotated chairs',()=>{
   const d=data([source('crate','box',[1.1,1.3,1.2]),source('chair','lejak',[.62,1.1,.8])]);
   const box=new THREE.Box3(new THREE.Vector3(-1,0,-.5),new THREE.Vector3(1,1,.5));
@@ -69,6 +82,26 @@ test('instance envelope stays inside the source bounds, including rotated chairs
     const result=box.clone().applyMatrix4(propInstanceMatrix(record,box,.7)),expected=record.placement.box;
     assert.ok(result.min.y>=expected.min.y-1e-6&&result.max.y<=expected.max.y+1e-6);
     for(const axis of ['x','z'])assert.ok(result.min[axis]>=expected.min[axis]-1e-6&&result.max[axis]<=expected.max[axis]+1e-6);
+  }
+});
+
+test('actual tilted and rotated props fit their source obstacle axes and retain irregular BOX geometry',async()=>{
+  const level3=manifest.levels.find(level=>level.id===3),level4=manifest.levels.find(level=>level.id===4);
+  const [greece,egypt]=await Promise.all([level3,level4].map(async level=>JSON.parse(await readFile(new URL(manifest.models[level.model],root),'utf8'))));
+  const prototype=new THREE.Box3(new THREE.Vector3(-.5,0,-.5),new THREE.Vector3(.5,1,.5));
+  const placements=importedPropPlacements(greece);
+  assert.ok(!placements.some(({mesh})=>mesh.name==='dx113'),'the BOX atlas also covers irregular geometry');
+  const barrel=placements.find(({mesh})=>mesh.name==='dx107');
+  const axis=new THREE.Vector3(0,1,0).transformDirection(propInstanceMatrix(barrel,prototype));
+  assert.ok(axis.dot(new THREE.Vector3(.8668,.196,-.4585).normalize())>.9999,'the replacement follows the end caps of a barrel lying on its side');
+  const crates=importedPropPlacements(egypt);
+  for(const id of ['dx383','dx396']){
+    const crate=crates.find(({mesh})=>mesh.name===id),local=propInstanceMatrix(crate,prototype).invert();
+    for(let i=0;i<crate.mesh.vertices.length;i+=3){
+      const point=new THREE.Vector3().fromArray(crate.mesh.vertices,i).multiplyScalar(.01).applyMatrix4(local);
+      assert.ok(Math.abs(Math.abs(point.x)-.5)<.001&&Math.abs(Math.abs(point.z)-.5)<.001);
+      assert.ok(Math.min(Math.abs(point.y),Math.abs(point.y-1))<.001);
+    }
   }
 });
 

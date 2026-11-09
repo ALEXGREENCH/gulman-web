@@ -102,7 +102,7 @@ class EllipsoidSweep {
     return found?best:null;
   }
 
-  slide(tree, center, displacement, actors) {
+  slide(tree, center, displacement, actors, holdSlope = Infinity) {
     const remaining=displacement.clone();
     let normalY=0,blocked=false,hit=false;
     for(let i=0;i<6&&remaining.lengthSq()>EPS*EPS;i++){
@@ -114,6 +114,7 @@ class EllipsoidSweep {
       const length=this.motion.length();
       // GLDCE world scale 10 times the ellipse solver's 0.005 separation.
       center.addScaledVector(remaining,Math.max(0,time-DCE.skin/length));
+      if(Math.min(this.hitGroundY,n.y)>=holdSlope)return {normalY,blocked,hit,held:true};
       this.motion.multiplyScalar(1-time);
       this.motion.addScaledVector(n,-Math.min(0,this.motion.dot(n)));
       remaining.copy(this.motion).multiply(RADII);
@@ -143,6 +144,9 @@ export class OriginalMovement {
     const forwardForce=forward>0&&!shift?DCE.forwardForce:DCE.reverseForce;
     const strafeForce=shift?DCE.shiftForce:DCE.forwardForce;
     const sin=Math.sin(yaw),cos=Math.cos(yaw);
+    // The sweep reports normals in scaled ellipsoid coordinates.
+    const slope=this.world.slopeCos;
+    const holdSlope=forward||strafe?Infinity:slope/Math.hypot(slope,RADII.x*Math.sqrt(1-slope*slope));
     const localToWorld=(v,x,z)=>v.set(z*sin-x*cos,0,z*cos+x*sin);
     const h=DCE.tick;
     while(this.accumulator+EPS>=h){
@@ -173,7 +177,8 @@ export class OriginalMovement {
         const gravity=DCE.gravity*(this.onGround?1-this.normalY:1);
         this.vertical=this.vertical*Math.max(0,1-DCE.airFriction*falling)-gravity*falling;
         this.fall.set(0,this.vertical*falling,0);
-        fallHit=this.sweep.slide(this.world.tree,this.center,this.fall,actors);
+        fallHit=this.sweep.slide(this.world.tree,this.center,this.fall,actors,this.vertical<=0?holdSlope:Infinity);
+        if(fallHit.held)this.vertical=0;
         blocked||=fallHit.blocked;
         // At rest, keep a short support probe without adding artificial fall speed.
         this.normalY=this.fall.y<0?fallHit.normalY:0;

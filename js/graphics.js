@@ -238,6 +238,8 @@ export class GraphicsManager {
     this._sunDirection = new THREE.Vector3(0.55, 0.72, 0.34).normalize();
     this._originalSunDirection = new THREE.Vector3();
     this._shadowFocus = new THREE.Vector3();
+    this._shadowRight = new THREE.Vector3();
+    this._shadowUp = new THREE.Vector3();
     this._shadowAnchor = new THREE.Vector3(NaN, NaN, NaN);
     this._viewDirection = new THREE.Vector3();
     this._rendererSize = new THREE.Vector2();
@@ -817,6 +819,10 @@ export class GraphicsManager {
     camera.right = camera.top = quality.shadowRadius;
     camera.near = 1; camera.far = 190;
     camera.updateProjectionMatrix();
+    const direction = this.mode === 'original' ? this._originalSunDirection : this._sunDirection;
+    const lightBasis = new THREE.Matrix4().lookAt(direction, new THREE.Vector3(), camera.up);
+    this._shadowRight.setFromMatrixColumn(lightBasis, 0);
+    this._shadowUp.setFromMatrixColumn(lightBasis, 1);
     shadow.bias = -0.00012;
     shadow.normalBias = this.mode === 'original' ? .018 : .025;
     shadow.radius = 1;
@@ -921,11 +927,13 @@ export class GraphicsManager {
       const relocated = !Number.isFinite(this._shadowAnchor.x) || this._shadowAnchor.distanceToSquared(this._shadowFocus) > 25;
       if (relocated || this._shadowElapsed >= 1 / quality.shadowFPS) {
         this._shadowElapsed = 0;
-        // Snap the focus to world-space texels to reduce crawling at slow speeds.
+        // Snap in the shadow camera's plane so a static point keeps the same
+        // subpixel offset as the player looks around or changes elevation.
         const texel = quality.shadowRadius * 2 / quality.shadowSize;
-        const x = Math.round(this._shadowFocus.x / texel) * texel;
-        const z = Math.round(this._shadowFocus.z / texel) * texel;
-        this._sun.target.position.set(x, this._shadowFocus.y, z);
+        const target = this._sun.target.position.copy(this._shadowFocus);
+        const x = target.dot(this._shadowRight), y = target.dot(this._shadowUp);
+        target.addScaledVector(this._shadowRight, Math.round(x / texel) * texel - x);
+        target.addScaledVector(this._shadowUp, Math.round(y / texel) * texel - y);
         this._sun.position.copy(this._sun.target.position).addScaledVector(this.mode === 'original' ? this._originalSunDirection : this._sunDirection, 100);
         this._shadowAnchor.copy(this._shadowFocus);
         this._sun.updateMatrixWorld();

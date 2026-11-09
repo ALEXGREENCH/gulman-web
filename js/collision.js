@@ -97,7 +97,7 @@ export class WorldCollision {
     this._capsule.end.set(position.x, position.y + this.height - this.radius, position.z);
   }
 
-  _resolve(position, velocity = null) {
+  _resolve(position, velocity = null, holdGround = false) {
     if (!this.triangleCount) return { onGround: false, blocked: false };
     this._setCapsule(position);
     let onGround = false;
@@ -116,7 +116,15 @@ export class WorldCollision {
         const hit = this.tree.triangleCapsuleIntersect(this._capsule, face);
         if (!hit || hit.depth <= EPSILON || !Number.isFinite(hit.depth)) continue;
         corrected = true;
-        if (hit.normal.y >= this.slopeCos) onGround = true;
+        if (hit.normal.y >= this.slopeCos) {
+          onGround = true;
+          if (holdGround) {
+            // Remove downward penetration without turning gravity into
+            // horizontal movement while the player is standing still.
+            this._capsule.translate(this._normal.set(0, hit.depth / hit.normal.y + EPSILON, 0));
+            continue;
+          }
+        }
         else if (Math.abs(hit.normal.y) < this.slopeCos) blocked = true;
         if (hit.normal.y > 0 && hit.normal.y < this.slopeCos) {
           // Treat steep slopes like walls. Projecting horizontally into a
@@ -184,6 +192,7 @@ export class WorldCollision {
     const distance = (velocity.length() + this.gravity * dt) * dt;
     const steps = Math.max(1, Math.ceil(dt * 90), Math.ceil(distance / (this.radius * .3)));
     const slice = dt / steps;
+    const idle = velocity.x === 0 && velocity.z === 0;
     let grounded = onGround && velocity.y <= .01;
     let blocked = false;
     for (let i = 0; i < steps; i++) {
@@ -191,10 +200,12 @@ export class WorldCollision {
       const jumping = velocity.y > .01;
       const before = position.clone();
       const horizontal = new Vector3(velocity.x, 0, velocity.z);
+      // A landing at speed still uses the usual collision response.
+      const holdGround = idle && !jumping && (wasGrounded || velocity.y >= -.2);
       velocity.y -= this.gravity * slice;
       position.addScaledVector(velocity, slice);
       const desired = position.clone();
-      const collision = this._resolve(position, velocity);
+      const collision = this._resolve(position, velocity, holdGround);
       // A walkable contact is support even while moving up a slope. Its
       // response can generate positive Y velocity, which is not a jump.
       grounded = collision.onGround;
@@ -213,7 +224,7 @@ export class WorldCollision {
         const ground = this._support(position, position.y + .02, this.stepHeight + .04);
         if (ground !== undefined && ground <= position.y + .02) {
           position.y = ground + EPSILON;
-          this._resolve(position, velocity);
+          this._resolve(position, velocity, holdGround);
           velocity.y = 0;
           grounded = true;
         }

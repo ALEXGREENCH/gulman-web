@@ -1,22 +1,22 @@
 import * as THREE from 'three';
 import {Assets} from './assets.js?v=20261109-10';
-import {createCharacter} from './characters.js?v=20261109-12';
-import {OriginalMovement} from './original-physics.js?v=20261109-12';
-import {WorldCollision} from './collision.js?v=20261109-12';
+import {createCharacter} from './characters.js?v=20261109-15';
+import {OriginalMovement} from './original-physics.js?v=20261109-15';
+import {WorldCollision} from './collision.js?v=20261109-15';
 import {CrowdRenderer} from './crowd.js?v=20261109-10';
 import {OriginalProjectiles,rollOriginalLoot,rollOriginalPickup,safeProjectileOrigin} from './original-combat.js?v=20261109-12';
 import {OriginalUI} from './original-ui.js?v=20261109-10';
 import {AudioManager} from './audio.js?v=20261109-10';
 import {createPlayerChoice,heroForKey} from './player-choice.js?v=20261109-12';
-import {GraphicsManager} from './graphics.js?v=20261109-10';
+import {GraphicsManager} from './graphics.js?v=20261109-15';
 import {CombatController} from './combat.js?v=20261109-10';
 import {ProceduralViewmodel} from './viewmodel.js?v=20261109-10';
 import {MotionController} from './motion.js?v=20261109-10';
 import {CombatFX} from './combat-fx.js?v=20261109-10';
 import {MouseCapture} from './mouse-capture.js?v=20261109-13';
-import {ropeSupport} from './rope-support.js?v=20261109-14';
+import {ropeSupport} from './rope-support.js?v=20261109-15';
 import {OriginalWater} from './original-water.js?v=20261109-11';
-import {EnhancedWorld} from './enhanced-world.js?v=20261109-10';
+import {EnhancedWorld} from './enhanced-world.js?v=20261109-15';
 import {EnhancedCharacterLayer} from './enhanced-character-layer.js?v=20261109-10';
 import {selectInteraction,maxSlopeForLevel,jumpSpeedForLevel} from './progression.js?v=20261109-10';
 
@@ -27,6 +27,7 @@ const tasks=['Найди письмо связиста','Обезвредь бо
 const weapons=[{name:'ПИСТОЛЕТ',damage:34,rate:.3,cost:1,sound:'sounds/weapons/pistol-01.wav'},{name:'АВТОМАТ',damage:24,rate:.1,cost:1,sound:'sounds/weapons/aug-1.wav'},{name:'ГРАНАТА',damage:120,rate:1,cost:5,splash:5,sound:'sounds/weapons/gl_explodesmoke.wav'},{name:'БИГГАН',damage:85,rate:.65,cost:3,splash:2,sound:'sounds/weapons/sg_mediumexplode.wav'}];
 let renderer,scene,camera,world,worldMesh,player,level,actors=[],items=[],hazards=[],effects=[],crowd,combatFX,projectiles,viewmodel,enhancedWorld,enhancedCharacters,originalWater,originalMovement;
 let running=false,loaded=false,busy=false,thirdPerson=true,shooting=false,grounded=false;
+let ropes;
 let pendingGrenade=null,weaponReady=true;
 let yaw=0,pitch=-.08,hp=100,ammo=120,money=0,weapon=0,collected=0,totalKeys=0,kills=0,shotTimer=0,toastTimer=0,damageTimer=0,hitTimer=0,saveTimer=0;
 const position=new THREE.Vector3(),velocity=new THREE.Vector3(),spawn=new THREE.Vector3();
@@ -153,7 +154,7 @@ async function loadLevel(id,restore=false){if(busy||!assets.manifest)return;busy
     initRenderer();cancelGrenadeThrow();hero.cancel();loaded=false;originalWater?.dispose();originalWater=null;enhancedWorld?.dispose();enhancedWorld=null;graphics.releaseScene?.(scene);combatFX?.dispose();projectiles?.dispose();crowd?.dispose();enhancedCharacters?.dispose();enhancedCharacters=null;for(const actor of actors)actor.char.dispose();player?.dispose();player=null;actors=[];items=[];hazards=[];effects=[];
     level=assets.manifest.levels.find(l=>l.id===id);world.slopeCos=Math.cos(maxSlopeForLevel(id)*Math.PI/180);scene=new THREE.Scene();scene.add(camera);scene.background=new THREE.Color(id===9?0x6c7d81:0xacc5cc);scene.fog=new THREE.Fog(scene.background,180,650);scene.add(new THREE.HemisphereLight(0xf1f1df,0x626d55,2.1));const sun=new THREE.DirectionalLight(0xfff0cf,1.5);sun.position.set(80,180,50);scene.add(sun);
     const skyPath=assets.manifest.images['textures/!!!!!!sky_jpg__0.jpg'];if(skyPath){const sky=await assets.texture({map:skyPath});sky.mapping=THREE.EquirectangularReflectionMapping;scene.background=sky;}
-    worldMesh=await assets.model(level.model);scene.add(worldMesh);worldMesh.updateMatrixWorld(true);$('loading-status').textContent='Столкновения и персонажи…';await new Promise(r=>setTimeout(r,20));const modelData=await assets.json(assets.manifest.models[level.model.toLowerCase()]);world.setWorld(worldMesh,ropeSupport(id,modelData));
+    worldMesh=await assets.model(level.model);scene.add(worldMesh);worldMesh.updateMatrixWorld(true);$('loading-status').textContent='Столкновения и персонажи…';await new Promise(r=>setTimeout(r,20));const modelData=await assets.json(assets.manifest.models[level.model.toLowerCase()]);ropes=ropeSupport(id,modelData);world.setWorld(worldMesh,ropes);
     enhancedWorld=new EnhancedWorld({assets,scene,world:worldMesh,modelData,levelId:id,groundSample:(x,y,z)=>world.ground(x,y,z,35),quality:graphics.diagnostics.effectiveQuality});
     originalWater=new OriginalWater({scene,world:worldMesh,modelData:enhancedWorld.modelData,sky:scene.background,levelId:id});
     mapBounds=new THREE.Box3().setFromObject(worldMesh);
@@ -285,9 +286,9 @@ function updateItems(dt,time){const near=selectInteraction(items,position,world,
   $('prompt').style.display=near?'block':'none';if(near){const names={'АПТЕЧКА':'Аптечка','ПАТРОНЫ':'Патроны','БАКСЫ':'Деньги','GameKey':'Предмет задания','GameEnd':'Выход','МАГАЗИН':'Магазин'};$('prompt').textContent='E — '+(names[near.entry.command]||'Подобрать');if(keys.has('KeyE')){keys.delete('KeyE');interact(near);}}
   const targets=items.filter(i=>!i.collected&&i.entry.command===(collected>=totalKeys?'GameEnd':'GameKey'));const min=targets.length?Math.min(...targets.map(t=>position.distanceTo(t.pos))):0;$('objective-distance').textContent=min?`${Math.round(min)} м до ${collected>=totalKeys?'выхода':'цели'} · M — карта`:'';
 }
-function updateEnemies(dt){const playerEye=position.clone().add(new THREE.Vector3(0,1.1,0));for(const actor of actors){const dist=actor.pos.distanceTo(position);actor.char.group.visible=dist<100;if(actor.dead){actor.char.update(dt,false,true);continue;}if(dist>75)continue;actor.timer-=dt;const to=playerEye.clone().sub(actor.pos.clone().add(new THREE.Vector3(0,1.2,0)));const canSee=dist<38&&!world.ray(actor.pos.clone().add(new THREE.Vector3(0,1.2,0)),to,to.length()-.6);let moving=false;
+function updateEnemies(dt,modern){const playerEye=position.clone().add(new THREE.Vector3(0,1.1,0));for(const actor of actors){const dist=actor.pos.distanceTo(position);actor.char.group.visible=dist<100;if(actor.dead){actor.char.update(dt,false,true);continue;}if(dist>75)continue;actor.timer-=dt;const to=playerEye.clone().sub(actor.pos.clone().add(new THREE.Vector3(0,1.2,0)));const canSee=dist<38&&!world.ray(actor.pos.clone().add(new THREE.Vector3(0,1.2,0)),to,to.length()-.6);let moving=false;
     if(canSee){actor.char.group.rotation.y=Math.atan2(to.x,to.z);if(dist>8){const direction=new THREE.Vector3(to.x,0,to.z).normalize();const step=direction.clone().multiplyScalar(dt*2.2);const body=actor.pos.clone().add(new THREE.Vector3(0,.8,0));if(!world.ray(body,direction,.6+step.length())){const next=actor.pos.clone().add(step);const floor=world.ground(next.x,next.y+.65,next.z,1.8);if(floor!==undefined&&Math.abs(floor-next.y)<.7){actor.pos.set(next.x,floor,next.z);moving=true;}}}if(actor.timer<=0&&dist<30){actor.timer=1.2+Math.random()*1.4;const from=actor.pos.clone().add(new THREE.Vector3(0,1.2,0));const aim=playerEye.clone().sub(from).normalize();aim.x+=(Math.random()-.5)*.08;aim.y+=(Math.random()-.5)*.06;projectiles?.fire({weapon:actor.type===5?3:0,origin:from,direction:aim.normalize(),owner:'enemy',damage:actor.type===5?10:4});}}
-    actor.char.group.position.copy(actor.pos);actor.char.update(dt,{moving,running:false});
+    actor.char.group.position.copy(actor.pos);actor.char.update(dt,{moving,running:false,enhanced:modern});
   }
 }
 
@@ -317,18 +318,20 @@ function frame(now){
     const crouchHeld=keys.has('ControlLeft')||keys.has('ControlRight');
     if(modern){motion.update(dt,{moving,sprinting:sprint,aiming:combat.ads,crouchPressed,crouchHeld,grounded,verticalSpeed:velocity.y,strafe:s});combat.setAmmo(ammo);combat.update(dt,{aiming:aimHeld,sprinting:motion.sprinting,moving,grounded});}
     crouchPressed=false;
-    forward.set(Math.sin(yaw),0,Math.cos(yaw));right.set(-Math.cos(yaw),0,Math.sin(yaw));tmp.copy(forward).multiplyScalar(f).addScaledVector(right,s);if(tmp.lengthSq())tmp.normalize();
+    const jump=keys.has('Space');
+    const moveYaw=grounded&&!jump&&!motion.sliding?(ropes?.heading(position,yaw,f,s)??yaw):yaw;
+    forward.set(Math.sin(moveYaw),0,Math.cos(moveYaw));right.set(-Math.cos(moveYaw),0,Math.sin(moveYaw));tmp.copy(forward).multiplyScalar(f).addScaledVector(right,s);if(tmp.lengthSq())tmp.normalize();
     if(modern&&motion.sliding)tmp.copy(forward);tmp.multiplyScalar(modern?motion.speed:sprint?8:4.3);velocity.x=tmp.x;velocity.z=tmp.z;
     if(modern){if(motion.crouched)world.height=1.12;else if(world.height<1.65){const ceiling=world.ray(position.clone().add(new THREE.Vector3(0,.4,0)),new THREE.Vector3(0,1,0),1.25);if(!ceiling)world.height=1.65;else motion.crouched=true;}}else world.height=1.65;
-    if(!classic&&keys.has('Space')&&grounded&&world.height>1.5){velocity.y=jumpSpeedForLevel(level.id);grounded=false;keys.delete('Space');}
-    const fallSpeed=velocity.y,result=classic?originalMovement.move(position,velocity,elapsed,{forward:f,strafe:s,yaw,shift:keys.has('ShiftLeft')||keys.has('ShiftRight'),jump:keys.has('Space'),actors}):world.move(position,velocity,dt,grounded);if(result.onGround&&!grounded&&modern){motion.landingVelocity=-Math.min(.85,Math.abs(fallSpeed)*.055);}grounded=result.onGround;
+    if(!classic&&jump&&grounded&&world.height>1.5){velocity.y=jumpSpeedForLevel(level.id);grounded=false;keys.delete('Space');}
+    const fallSpeed=velocity.y,result=classic?originalMovement.move(position,velocity,elapsed,{forward:f,strafe:s,yaw:moveYaw,shift:keys.has('ShiftLeft')||keys.has('ShiftRight'),jump,actors}):world.move(position,velocity,dt,grounded);if(result.onGround&&!grounded&&modern){motion.landingVelocity=-Math.min(.85,Math.abs(fallSpeed)*.055);}grounded=result.onGround;
     if(position.y<mapBounds.min.y-20){position.copy(spawn);resetMovement();damage(15);toast('Возвращение на безопасную точку.');}
-    motion.prepare(player);player.update(dt,{moving,running:classic?!(keys.has('ShiftLeft')||keys.has('ShiftRight')):sprint,airborne:!grounded,crouching:modern&&motion.crouched,direction:f<0?'back':s<0?'left':s>0?'right':'forward'});
+    motion.prepare(player);player.update(dt,{moving,running:classic?!(keys.has('ShiftLeft')||keys.has('ShiftRight')):sprint,airborne:!grounded,crouching:modern&&motion.crouched,direction:f<0?'back':s<0?'left':s>0?'right':'forward',enhanced:modern});
     if(modern&&!player.grenadeThrow?.active)motion.apply(player,{moving,aiming:combat.ads,reloading:combat.reloading,reloadProgress:combat.reloadProgress,recoil:combat.recoil.pitch});
     updateCamera(false,dt);
     if(modern||weapon===2)viewmodel.update(dt,{speed:modern?motion.speed:moving?4.3:0,sprinting:modern&&motion.sprinting,aiming:modern?combat.ads:0,reloading:modern&&combat.reloading,reloadProgress:combat.reloadProgress,recoil:modern?combat.recoil:{},movementX:lookX,movementY:lookY,grounded,landing:modern?motion.landing:0,grenadeThrow:player.grenadeThrow});
     releaseGrenade();if(modern)updateCombatHUD();
-    lookX=lookY=0;if(shooting)shoot();updateEnemies(dt);if(running)updateItems(dt,now/1000);for(const h of hazards)if(position.distanceTo(h.pos)<h.radius)damage(dt*10);updateMap();projectiles?.update(dt,{actors,playerPosition:position});combatFX?.update(dt);
+    lookX=lookY=0;if(shooting)shoot();updateEnemies(dt,modern);if(running)updateItems(dt,now/1000);for(const h of hazards)if(position.distanceTo(h.pos)<h.radius)damage(dt*10);updateMap();projectiles?.update(dt,{actors,playerPosition:position});combatFX?.update(dt);
   }
   for(let i=effects.length-1;i>=0;i--){const e=effects[i];e.ttl-=dt;if(e.ttl<=0){e.mesh.removeFromParent();e.mesh.geometry.dispose();e.mesh.material.dispose();effects.splice(i,1);}}
   if(toastTimer>0&&(toastTimer-=dt)<=0)$('toast').style.opacity=0;if(damageTimer>0&&(damageTimer-=dt)<=0)$('damage').style.borderColor='transparent';if(hitTimer>0&&(hitTimer-=dt)<=0)$('hitmarker').style.opacity=0;
