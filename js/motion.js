@@ -28,7 +28,7 @@ export class MotionController {
   update(dt, { moving = false, sprinting = false, aiming = 0, crouchPressed = false,
     crouchHeld = false, grounded = true, verticalSpeed = 0, strafe = 0, paused = false } = {}) {
     if (paused) return this;
-    dt = Math.min(0.05, Math.max(0, Number.isFinite(dt) ? dt : 0));
+    dt = Math.min(0.1, Math.max(0, Number.isFinite(dt) ? dt : 0));
     this.clock += dt;
     this.slideCooldown = Math.max(0, this.slideCooldown - dt);
     if (crouchPressed && grounded && sprinting && this.speed > 5 && this.slideCooldown === 0) {

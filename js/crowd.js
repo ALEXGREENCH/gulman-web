@@ -93,6 +93,7 @@ export class CrowdRenderer {
       }
       const mesh = new THREE.InstancedMesh(geometry, entry.material, entry.records.length);
       mesh.name = `crowd:${entry.name}`;
+      mesh.userData.characterSurface = true;
       if(entry.graphicsOwned){mesh.userData.graphicsOwned=true;mesh.castShadow=entry.castShadow;mesh.receiveShadow=entry.receiveShadow;}
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false; // Individual distance culling happens below.

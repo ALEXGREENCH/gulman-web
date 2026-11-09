@@ -73,7 +73,12 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     meshPivot.add(centered);
     bones.get(source.id).add(meshPivot);
     const bodyMeshes = [];
-    part.traverse(child => { if (child.isMesh) { meshes.push(child); bodyMeshes.push(child); } });
+    part.traverse(child => {
+      if (!child.isMesh) return;
+      child.userData.characterSurface = true;
+      meshes.push(child);
+      bodyMeshes.push(child);
+    });
     meshesByBone.set(source.id, bodyMeshes);
   }));
 
@@ -154,6 +159,11 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     weaponRoot?.removeFromParent();
     weaponRoot = null;muzzleAnchor=null;heldObjectAnchor=null;
     if (!model) return;
+    model.traverse(child => {
+      if (!child.isMesh) return;
+      child.userData.characterSurface = true;
+      child.receiveShadow = false;
+    });
     const weaponBounds = new THREE.Box3().setFromObject(model);
     const weaponSize = weaponBounds.getSize(new THREE.Vector3());
     const grip = new THREE.Vector3(

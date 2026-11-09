@@ -1,23 +1,23 @@
 import * as THREE from 'three';
 import {Assets} from './assets.js?v=20261109-10';
-import {createCharacter} from './characters.js?v=20261109-17';
-import {OriginalMovement} from './original-physics.js?v=20261109-17';
+import {createCharacter} from './characters.js?v=20261109-18';
+import {OriginalMovement} from './original-physics.js?v=20261109-18';
 import {WorldCollision} from './collision.js?v=20261109-15';
-import {CrowdRenderer} from './crowd.js?v=20261109-10';
+import {CrowdRenderer} from './crowd.js?v=20261109-18';
 import {OriginalProjectiles,rollOriginalLoot,rollOriginalPickup,safeProjectileOrigin} from './original-combat.js?v=20261109-12';
 import {OriginalUI} from './original-ui.js?v=20261109-10';
 import {AudioManager} from './audio.js?v=20261109-10';
 import {createPlayerChoice,heroForKey} from './player-choice.js?v=20261109-12';
-import {GraphicsManager} from './graphics.js?v=20261109-15';
+import {GraphicsManager} from './graphics.js?v=20261109-18';
 import {CombatController} from './combat.js?v=20261109-10';
 import {ProceduralViewmodel} from './viewmodel.js?v=20261109-10';
-import {MotionController} from './motion.js?v=20261109-10';
+import {MotionController} from './motion.js?v=20261109-18';
 import {CombatFX} from './combat-fx.js?v=20261109-10';
 import {MouseCapture} from './mouse-capture.js?v=20261109-17';
 import {ropeSupport} from './rope-support.js?v=20261109-15';
 import {OriginalWater} from './original-water.js?v=20261109-11';
 import {EnhancedWorld} from './enhanced-world.js?v=20261109-15';
-import {EnhancedCharacterLayer} from './enhanced-character-layer.js?v=20261109-10';
+import {EnhancedCharacterLayer} from './enhanced-character-layer.js?v=20261109-18';
 import {selectInteraction,maxSlopeForLevel,jumpSpeedForLevel} from './progression.js?v=20261109-10';
 
 const $=id=>document.getElementById(id);
@@ -31,6 +31,7 @@ let ropes;
 let pendingGrenade=null,weaponReady=true;
 let yaw=0,pitch=-.08,hp=100,ammo=120,money=0,weapon=0,collected=0,totalKeys=0,kills=0,shotTimer=0,toastTimer=0,damageTimer=0,hitTimer=0,saveTimer=0;
 const position=new THREE.Vector3(),velocity=new THREE.Vector3(),spawn=new THREE.Vector3();
+const renderFeet=new THREE.Vector3();
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),tmp=new THREE.Vector3();
 let lastFrame=performance.now(),frameCount=0,fpsTime=0,frameCPUTime=0;
 let drag=null,comicIndex=0,mapBounds,firePointer=null,aimHeld=false,crouchPressed=false,lookX=0,lookY=0;
@@ -286,7 +287,9 @@ function updateEnemies(dt,modern){const playerEye=position.clone().add(new THREE
 
 function updateCamera(instant=false,dt=.016){
   const modern=isEnhanced(),ads=modern?combat.ads:0;
-  const head=position.clone().add(new THREE.Vector3(0,modern?motion.eyeHeight:1.4,0));
+  if(!instant&&usesOriginalPhysics())originalMovement.renderPosition(position,renderFeet);
+  else renderFeet.copy(position);
+  const head=renderFeet.clone().add(new THREE.Vector3(0,modern?motion.eyeHeight:1.4,0));
   if(modern)head.y+=motion.landing+(!thirdPerson?motion.bob:0);
   const viewYaw=yaw+(modern?combat.recoil.yaw:0),viewPitch=pitch+(modern?combat.recoil.pitch:0);
   const direction=new THREE.Vector3(Math.sin(viewYaw)*Math.cos(viewPitch),Math.sin(viewPitch),Math.cos(viewYaw)*Math.cos(viewPitch));let desired;
@@ -295,13 +298,13 @@ function updateCamera(instant=false,dt=.016){
   if(modern)camera.rotateZ(motion.roll);
   const fov=modern?(75-ads*25+(motion.sprinting?7:motion.sliding?5:0)):67;
   camera.fov=instant?fov:THREE.MathUtils.lerp(camera.fov,fov,1-Math.exp(-dt*12));camera.updateProjectionMatrix();
-  player.group.position.copy(position);player.group.rotation.y=yaw;player.group.visible=thirdPerson&&camera.position.distanceTo(head)>.8;
+  player.group.position.copy(renderFeet);player.group.rotation.y=yaw;player.group.visible=thirdPerson&&camera.position.distanceTo(head)>.8;
   viewmodel?.setVisible(!thirdPerson&&(modern||weapon===2));updateCameraButton();
 }
 function updateMap(){if($('minimap').hidden)return;const ctx=$('minimap').getContext('2d'),w=220;ctx.clearRect(0,0,w,w);ctx.fillStyle='#101a13e0';ctx.fillRect(0,0,w,w);const sx=mapBounds.max.x-mapBounds.min.x,sz=mapBounds.max.z-mapBounds.min.z,scale=190/Math.max(sx,sz);const map=p=>[110+(p.x-(mapBounds.min.x+mapBounds.max.x)/2)*scale,110+(p.z-(mapBounds.min.z+mapBounds.max.z)/2)*scale];ctx.strokeStyle='#75865e60';ctx.strokeRect(110-sx*scale/2,110-sz*scale/2,sx*scale,sz*scale);const dot=(p,c,r)=>{const [x,z]=map(p);ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,z,r,0,Math.PI*2);ctx.fill();};for(const a of actors)if(!a.dead)dot(a.pos,'#d47560',2);for(const i of items)if(!i.collected&&['GameKey','GameEnd'].includes(i.entry.command))dot(i.pos,i.entry.command==='GameKey'?'#f6cf71':'#a2e47e',4);dot(position,'white',4);const [x,z]=map(position);ctx.strokeStyle='white';ctx.beginPath();ctx.moveTo(x,z);ctx.lineTo(x+Math.sin(yaw)*10,z+Math.cos(yaw)*10);ctx.stroke();ctx.fillStyle='#c6d2b0';ctx.font='10px Arial';ctx.fillText('N',105,12);}
 
 function frame(now){
-  requestAnimationFrame(frame);const elapsed=Math.min(.25,(now-lastFrame)/1000),dt=Math.min(.04,elapsed);lastFrame=now;
+  requestAnimationFrame(frame);const elapsed=Math.min(.25,(now-lastFrame)/1000),dt=Math.min(.1,elapsed);lastFrame=now;
   if(!loaded||!scene||(!running&&ui.visible))return;const cpuStart=performance.now();
   if(running){
     const modern=isEnhanced(),classic=usesOriginalPhysics();voiceTimer-=dt;if(voiceTimer<=0)heroVoice();shotTimer-=dt;saveTimer+=dt;
@@ -313,7 +316,7 @@ function frame(now){
     if(modern){motion.update(dt,{moving,sprinting:sprint,aiming:combat.ads,crouchPressed,crouchHeld,grounded,verticalSpeed:velocity.y,strafe:s});combat.setAmmo(ammo);combat.update(dt,{aiming:aimHeld,sprinting:motion.sprinting,moving,grounded});}
     crouchPressed=false;
     const jump=keys.has('Space');
-    const moveYaw=grounded&&!jump&&!motion.sliding?(ropes?.heading(position,yaw,f,s)??yaw):yaw;
+    const moveYaw=grounded&&(classic||!jump)&&!motion.sliding?(ropes?.heading(position,yaw,f,s)??yaw):yaw;
     forward.set(Math.sin(moveYaw),0,Math.cos(moveYaw));right.set(-Math.cos(moveYaw),0,Math.sin(moveYaw));tmp.copy(forward).multiplyScalar(f).addScaledVector(right,s);if(tmp.lengthSq())tmp.normalize();
     if(modern&&motion.sliding)tmp.copy(forward);tmp.multiplyScalar(modern?motion.speed:sprint?8:4.3);velocity.x=tmp.x;velocity.z=tmp.z;
     if(modern){if(motion.crouched)world.height=1.12;else if(world.height<1.65){const ceiling=world.ray(position.clone().add(new THREE.Vector3(0,.4,0)),new THREE.Vector3(0,1,0),1.25);if(!ceiling)world.height=1.65;else motion.crouched=true;}}else world.height=1.65;

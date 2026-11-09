@@ -23,25 +23,40 @@ function driver(world, point, hz=60) {
 
 test('DCE returns from a sprint to normal movement while W stays held',()=>{
   const world=flatWorld(),run=driver(world,[0,.03,0]),walk=driver(world,[0,.03,0]),back=driver(world,[0,.03,0]);
-  run.tick({forward:1,sprint:true});assert.ok(run.v.z>0&&run.v.z<1);
+  run.tick({forward:1,sprint:true});assert.ok(run.v.z>0&&run.v.z<1.4);
   for(let i=0;i<60;i++){run.tick({forward:1,sprint:true});walk.tick({forward:1});back.tick({forward:-1,sprint:true});}
-  assert.ok(run.v.z>5.4&&run.v.z<5.5);
-  assert.ok(walk.v.z>4.29&&walk.v.z<4.31);
+  assert.ok(run.v.z>7.99&&run.v.z<=8);
+  assert.ok(walk.v.z>5.44&&walk.v.z<5.45);
   assert.ok(back.v.z> -3&&back.v.z< -2.95);
   for(let i=0;i<60;i++){
     run.tick({forward:1});
-    assert.ok(run.v.z>=4.29,'releasing sprint must not slow forward movement to a short step');
+    assert.ok(run.v.z>=5.44,'releasing sprint must not slow forward movement to a short step');
   }
   assert.ok(Math.abs(run.v.z-walk.v.z)<.001);
   const z=run.p.z;run.tick();assert.ok(run.p.z>z&&run.v.z>0);
   for(let i=0;i<60;i++)run.tick();assert.ok(run.v.length()<.002);
 });
 
+test('rendered feet advance evenly between 120 Hz physics ticks on faster displays',()=>{
+  const {motion,p,v,tick}=driver(flatWorld(),[0,.03,0],144);
+  for(let i=0;i<144;i++)tick({forward:1});
+  const rendered=new T.Vector3();
+  let previous=motion.renderPosition(p,rendered).z;
+  for(let i=0;i<24;i++){
+    tick({forward:1});
+    const z=motion.renderPosition(p,rendered).z;
+    assert.ok(Math.abs(z-previous-v.z/144)<.0001,`visible movement was ${z-previous} m in a frame`);
+    previous=z;
+  }
+  p.set(12,3,4);motion.reset();
+  assert.deepEqual(motion.renderPosition(p,rendered).toArray(),p.toArray());
+});
+
 test('source jump rises at 4 m/s first, carries run momentum and lands consistently across refresh rates',()=>{
   const results=[];
   for(const hz of [25,60,120]){
     const {motion,p,v,tick}=driver(flatWorld(),[0,.03,0],hz);
-    for(let i=0;i<hz;i++)tick({forward:1,sprint:true});
+    for(let i=0;i<hz;i++)tick({forward:1});
     const base=p.y,z=p.z;tick({jump:true});
     assert.ok(v.y>=3.95&&v.y<=4.01);assert.ok(v.z>4);
     let peak=p.y,frames=1;
@@ -56,9 +71,9 @@ test('source jump rises at 4 m/s first, carries run momentum and lands consisten
 
 test('swept DCE collider slides along a thin wall and also stops against live actors',()=>{
   const {p,tick}=driver(flatWorld(true),[0,.03,-4]);
-  for(let i=0;i<30;i++)tick({forward:1,strafe:1,sprint:true});
+  for(let i=0;i<30;i++)tick({forward:1,strafe:1});
   const alongWall=p.z;
-  for(let i=0;i<24;i++)tick({forward:1,strafe:1,sprint:true});
+  for(let i=0;i<24;i++)tick({forward:1,strafe:1});
   assert.ok(p.x> -1.61&&p.x< -1.50);assert.ok(p.z>alongWall+1.4,`${p.toArray()} after sliding from z=${alongWall}`);
   const actor={pos:new T.Vector3(0,0,2)};
   const body=driver(flatWorld(),[0,.03,0]);
@@ -67,6 +82,16 @@ test('swept DCE collider slides along a thin wall and also stops against live ac
   actor.dead=true;
   for(let i=0;i<30;i++)body.tick({forward:1,sprint:true,actors:[actor]});
   assert.ok(body.p.z>2.5);
+});
+
+test('oblique wall contact preserves the tangential component of sprint speed',()=>{
+  const {p,tick}=driver(flatWorld(true),[-1.59,.03,-4]);
+  const input={forward:1,strafe:1,sprint:true};
+  for(let i=0;i<30;i++)tick(input);
+  const z=p.z;
+  for(let i=0;i<30;i++)tick(input);
+  assert.ok(p.x>=-1.61&&p.x< -1.50,`wall penetration at x=${p.x}`);
+  assert.ok(p.z-z>3.98,`wall slowed the forward component to ${p.z-z} m in half a second`);
 });
 
 async function acropolisWorld() {

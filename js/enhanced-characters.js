@@ -182,9 +182,12 @@ function sourceBody(character, key) {
     geometry.applyMatrix4(matrix);
     const rest = character.skinBasis.boneMatrices.get(boneId), world = geometry.clone().applyMatrix4(rest);
     const p = world.attributes.position, uv = geometry.attributes.uv, selected = [];
+    const mirrored = matrix.determinant() < 0;
     for (let i = 0; i < p.count; i += 3) {
       if (headPart && !hairTriangle(key, [0, 1, 2].map(j => new THREE.Vector2().fromBufferAttribute(uv, i + j)), [0, 1, 2].map(j => new THREE.Vector3().fromBufferAttribute(p, i + j)), character.skinBasis.partBounds.get(2))) continue;
-      selected.push(i, i + 1, i + 2);
+      // Baking a mirrored part into the rig must also flip its triangle
+      // winding, as Three.js did when rendering the original transform.
+      selected.push(i, i + (mirrored ? 2 : 1), i + (mirrored ? 1 : 2));
     }
     if (!selected.length) { geometry.dispose(); world.dispose(); continue; }
     const output = new THREE.BufferGeometry();
@@ -322,9 +325,12 @@ export function createEnhancedCharacterSkin(character, name = character?.skinBas
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = `enhanced:${key}:bone${boneId}`;
     mesh.userData.graphicsOwned = true; mesh.userData.enhancedCharacter = true; mesh.userData.boneId = boneId;
+    mesh.userData.characterSurface = true;
     mesh.userData.sourceSilhouette = Boolean(sourceSilhouette); mesh.userData.sourceHair = Boolean(sourceHair);
     if (!sourceSilhouette && [2, 14, 15].includes(boneId)) mesh.userData.anatomicalSource = 'MakeHuman hm08 CC0';
-    mesh.castShadow = mesh.receiveShadow = true;
+    // The shared shadow map refreshes less often than these animated joints.
+    mesh.castShadow = true;
+    mesh.receiveShadow = false;
     character.bones.get(boneId).add(mesh);
     return mesh;
   });

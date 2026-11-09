@@ -302,6 +302,25 @@ test('Original tables and parasols cast onto source ground without requiring Enh
   for (const mesh of [ground, table, canopy]) mesh.geometry.dispose(); material.dispose();
 });
 
+test('characters cast onto the world without receiving shadows from earlier poses', () => {
+  const graphics = manager(), render = renderer(), scene = new THREE.Scene();
+  const geometry = new THREE.BoxGeometry(), material = new THREE.MeshLambertMaterial();
+  const character = new THREE.Mesh(geometry, material), ground = new THREE.Mesh(geometry, material);
+  character.userData.characterSurface = true;
+  scene.add(new THREE.DirectionalLight(), character, ground);
+  graphics.applyRenderer(render).applyScene(scene);
+  try {
+    for (const mode of ['original', 'enhanced']) {
+      graphics.setMode(mode);
+      assert.equal(character.castShadow, true);
+      assert.equal(character.receiveShadow, false);
+      assert.equal(ground.receiveShadow, true);
+    }
+  } finally {
+    graphics.dispose(); geometry.dispose(); material.dispose();
+  }
+});
+
 test('sun shadow frustum follows distant and elevated players, covers visible nearby props, and refreshes immediately after recovery', () => {
   const graphics = manager(), render = renderer(), scene = new THREE.Scene();
   const sun = new THREE.DirectionalLight(); sun.position.set(80, 180, 50); scene.add(sun);

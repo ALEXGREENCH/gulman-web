@@ -580,7 +580,9 @@ export class GraphicsManager {
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       const solid = materials.some(material => (material.isMeshStandardMaterial || material.isMeshLambertMaterial || material.isMeshPhongMaterial) && (!material.transparent || material.alphaTest > 0));
       object.castShadow = solid && !viewmodel;
-      object.receiveShadow = solid && !viewmodel;
+      // The cached world shadow map holds older bone poses between refreshes.
+      // Don't project those silhouettes back onto the moving character skin.
+      object.receiveShadow = solid && !viewmodel && !object.userData.characterSurface;
     } else if (this.mode === 'enhanced') { object.castShadow = false; object.receiveShadow = false; }
   }
 

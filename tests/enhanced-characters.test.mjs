@@ -154,7 +154,7 @@ test('seven rigs preserve original costumes and hair with PBR detail and reconst
     }
     assert.ok(skin.stats.sourceHairParts > 0, `${name}: original hairstyle/hat survives`);
     assert.ok(skin.meshes.some(mesh => mesh.material === materials.faceMaterial), `${name}: approved new faces survive`);
-    assert.ok(character.meshes.every(mesh => !mesh.visible), `${name}: Crowd reads direct mesh visibility`);
+    assert.ok(character.meshes.every(mesh => !mesh.visible && mesh.userData.characterSurface), `${name}: source body is hidden and marked as animated`);
     const box = visibleBounds(skin), size = box.getSize(new THREE.Vector3());
     assert.ok(Math.abs(box.min.y - originalFeet) < 1e-6, `${name}: original feet position ${box.min.y}`);
     assert.ok(box.max.y > 1.65 && box.max.y < 1.95, `${name}: height ${box.max.y}`);
@@ -162,7 +162,7 @@ test('seven rigs preserve original costumes and hair with PBR detail and reconst
     for (const mesh of skin.meshes) {
       assert.equal(mesh.parent, character.bones.get(mesh.userData.boneId));
       assert.equal(mesh.userData.graphicsOwned, true);
-      assert.ok(mesh.castShadow && mesh.receiveShadow);
+      assert.ok(mesh.userData.characterSurface && mesh.castShadow && !mesh.receiveShadow, 'animated surfaces cast shadows without sampling an older pose');
       for (const attribute of Object.values(mesh.geometry.attributes)) for (const value of attribute.array) assert.ok(Number.isFinite(value), `${name}: non-finite ${attribute.name}`);
       if (!mesh.userData.sourceSilhouette) for (const value of mesh.geometry.attributes.uv.array) assert.ok(value >= 0 && value <= 1, name);
     }
@@ -179,6 +179,11 @@ test('seven rigs preserve original costumes and hair with PBR detail and reconst
 
 test('every source body vertex and UV survives unchanged in the standing bone frame', async () => {
   const materials = createEnhancedCharacterMaterials();
+  const vertexTuples = geometries => geometries.flatMap(({ attributes: { position, uv } }) =>
+    Array.from({ length: position.count }, (_, i) =>
+      [position.getX(i), position.getY(i), position.getZ(i), uv.getX(i), uv.getY(i)].join(',')
+    )
+  ).sort();
   for (const name of names) {
     const character = await make(name), skin = createEnhancedCharacterSkin(character, name, { materials });
     const ids = new Map([...character.bones].map(([id, bone]) => [bone, id]));
@@ -193,8 +198,7 @@ test('every source body vertex and UV survives unchanged in the standing bone fr
     for (const [id, originals] of sourceByBone) {
       const replacement = skin.meshes.find(mesh => mesh.userData.boneId === id && mesh.userData.sourceSilhouette);
       assert.ok(replacement, `${name}: original part ${id}`);
-      assert.deepEqual([...replacement.geometry.attributes.position.array], originals.flatMap(geometry => [...geometry.attributes.position.array]), `${name}: bone ${id} does not inflate or shrink`);
-      assert.deepEqual([...replacement.geometry.attributes.uv.array], originals.flatMap(geometry => [...geometry.attributes.uv.array]), `${name}: original embroidery/collar/tattoo layout`);
+      assert.deepEqual(vertexTuples([replacement.geometry]), vertexTuples(originals), `${name}: exact original geometry and UVs at bone ${id}`);
       assert.equal(replacement.material.normalMap.channel, 1);
       assert.equal(replacement.material.roughnessMap.channel, 1);
       assert.ok(replacement.geometry.attributes.uv1, 'micro weave uses independent UVs');
@@ -203,6 +207,23 @@ test('every source body vertex and UV survives unchanged in the standing bone fr
     skin.dispose(); character.dispose();
   }
   materials.dispose();
+});
+
+test('Box forearm keeps its visible normals when its original mirror is baked into the skin', async () => {
+  const character = await make('Box'), materials = createEnhancedCharacterMaterials();
+  const skin = createEnhancedCharacterSkin(character, 'Box', { materials });
+  try {
+    const arm = skin.meshes.find(mesh => mesh.userData.boneId === 13 && mesh.userData.sourceSilhouette);
+    const { position, normal } = arm.geometry.attributes;
+    const face = new THREE.Triangle(), faceNormal = new THREE.Vector3(), vertexNormal = new THREE.Vector3();
+    for (let i = 0; i < position.count; i += 3) {
+      face.a.fromBufferAttribute(position, i);
+      face.b.fromBufferAttribute(position, i + 1);
+      face.c.fromBufferAttribute(position, i + 2);
+      face.getNormal(faceNormal);
+      assert.ok(faceNormal.dot(vertexNormal.fromBufferAttribute(normal, i)) > 0, `inverted forearm triangle ${i / 3}`);
+    }
+  } finally { skin.dispose(); materials.dispose(); character.dispose(); }
 });
 
 test('disabled overlays preserve Original crouch and death motion exactly', async () => {

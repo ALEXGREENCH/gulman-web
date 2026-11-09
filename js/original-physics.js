@@ -4,7 +4,7 @@ import { Box3, Triangle, Vector3 } from 'three';
 // Distances and accelerations are converted from 100 source units per metre.
 export const DCE = Object.freeze({
   radii: Object.freeze([.4, 1, .4]), gravity: 8, airFriction: .1, floorFriction: 10,
-  runForce: 55, moveForce: 43.43, reverseForce: 30, airControl: .01,
+  moveForce: 55, runForce: 80.8, reverseForce: 30, airControl: .01,
   jumpHeight: .44, jumpSpeed: 4, jumpNormal: .5, skin: .05, tick: 1/120,
 });
 const EPS = 1e-8;
@@ -113,9 +113,12 @@ class EllipsoidSweep {
       normalY=Math.max(normalY,this.hitGroundY);hit=true;blocked||=this.hitGroundY<DCE.jumpNormal;
       const length=this.motion.length();
       // GLDCE world scale 10 times the ellipse solver's 0.005 separation.
-      center.addScaledVector(remaining,Math.max(0,time-DCE.skin/length));
+      const advance=Math.max(0,time-DCE.skin/length);
+      center.addScaledVector(remaining,advance);
       if(Math.min(this.hitGroundY,n.y)>=holdSlope)return {normalY,blocked,hit,held:true};
-      this.motion.multiplyScalar(1-time);
+      // The sweep stopped short of impact. Preserve the tangential part of
+      // that setback, as in GLScene's slide from the updated contact point.
+      this.motion.multiplyScalar(1-advance);
       this.motion.addScaledVector(n,-Math.min(0,this.motion.dot(n)));
       remaining.copy(this.motion).multiply(RADII);
     }
@@ -129,12 +132,18 @@ export class OriginalMovement {
   constructor(world) {
     this.world=world;this.sweep=new EllipsoidSweep();
     this.local=new Vector3();this.carry=new Vector3();this.drive=new Vector3();
-    this.center=new Vector3();this.fall=new Vector3();this.reset();
+    this.center=new Vector3();this.fall=new Vector3();this.previousPosition=new Vector3();this.reset();
   }
   reset() {
     this.local.set(0,0,0);this.carry.set(0,0,0);this.vertical=0;
     this.ascent=0;this.normalY=0;this.friction=DCE.airFriction;
     this.onGround=false;this.accumulator=0;this.queuedJump=false;
+    this.hasRenderSample=false;
+  }
+  renderPosition(position, target) {
+    if(!this.hasRenderSample)return target.copy(position);
+    // Render between physics ticks, including frames without a new tick.
+    return target.copy(this.previousPosition).lerp(position,Math.max(0,this.accumulator/DCE.tick));
   }
   move(position, velocity, dt, {forward=0,strafe=0,yaw=0,sprint=false,jump=false,actors=[]}={}) {
     if(!(dt>0)||!Number.isFinite(dt))return {onGround:this.onGround,blocked:false};
@@ -151,6 +160,7 @@ export class OriginalMovement {
     const h=DCE.tick;
     while(this.accumulator+EPS>=h){
       this.accumulator-=h;
+      this.previousPosition.copy(position);this.hasRenderSample=true;
       if((jump||this.queuedJump)&&this.onGround&&this.normalY>DCE.jumpNormal&&this.ascent<=0){
         this.carry.add(localToWorld(this.drive,this.local.x,this.local.z));this.local.set(0,0,0);
         this.ascent=DCE.jumpHeight;this.vertical=0;this.onGround=false;

@@ -11,6 +11,14 @@ test('slide requires grounded sprint and has a cooldown; aim reduces movement',(
   const walk=m.speed;for(let i=0;i<60;i++)m.update(.016,{moving:true,aiming:1});assert.ok(m.speed<walk);
   m.reset();m.update(.016,{crouchPressed:true,sprinting:true,grounded:false});assert.equal(m.sliding,false);
 });
+test('a slow frame advances the sprint ramp by its actual elapsed time',()=>{
+  const sprint={moving:true,sprinting:true};
+  const slow=new MotionController(),fast=new MotionController();
+  slow.update(1/15,sprint);
+  for(let i=0;i<4;i++)fast.update(1/60,sprint);
+  assert.equal(slow.clock,fast.clock);
+  assert.ok(Math.abs(slow.speed-fast.speed)<1e-9);
+});
 test('procedural pose removes its previous frame without accumulating rotations',()=>{
   const m=new MotionController(),character={bones:new Map([2,3,10,11,13,18].map(id=>[id,new THREE.Group()]))};
   m.lean=.1;for(let i=0;i<300;i++){m.prepare(character);m.apply(character,{aiming:1,reloading:true,reloadProgress:.5});}

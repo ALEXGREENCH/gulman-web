@@ -17,7 +17,7 @@ export class EnhancedCharacterLayer {
     if(changed)this.onChange();
   }
   load() {
-    if(!this.promise)this.promise=Promise.all([Promise.resolve().then(()=>this.materials.load()),this.skinFactory?null:import('./enhanced-characters.js?v=20261109-10').then(module=>{this.skinFactory=module.createEnhancedCharacterSkin;})]).then(([success])=>{
+    if(!this.promise)this.promise=Promise.all([Promise.resolve().then(()=>this.materials.load()),this.skinFactory?null:import('./enhanced-characters.js?v=20261109-18').then(module=>{this.skinFactory=module.createEnhancedCharacterSkin;})]).then(([success])=>{
       if(this.disposed){this.materials.dispose();return this;}
       if(success===false)throw new Error('Не загрузились материалы персонажей');
       this.ready=true;if(this._attach())this.onChange();return this;
