@@ -93,6 +93,6 @@ test('HUD HTML retains unique gameplay hooks and original UI stylesheets', async
   for(const id of ['crosshair','health-icon','money-icon','ammo-icon','weapon-icon']) assert.match(html,new RegExp(`<img\\s+id="${id}"`));
   assert.match(html,/<main id="menu"[^>]*>.*?<p role="status"[^>]*>Загрузка Гульмэна…<\/p><\/main>/);
   assert.match(html,/href="\.\/original-ui\.css(?:\?[^\"]*)?"/);
-  assert.match(html,/href="\.\/enhanced\.css(?:\?[^\"]*)?"/);
+  assert.doesNotMatch(html,/href="\.\/enhanced\.css(?:\?[^\"]*)?"/);
   assert.ok(!ids.includes('dialog-overlay'));
 });

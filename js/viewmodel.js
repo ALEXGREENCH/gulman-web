@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js?v=20261109-10';
 import { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-10';
-import { createEnhancedWeapon, ENHANCED_WEAPON_SPECS } from './enhanced-weapons.js?v=20261109-10';
+
+async function loadEnhancedWeapon(index) {
+  const { createEnhancedWeapon } = await import('./enhanced-weapons.js?v=20261109-10');
+  return createEnhancedWeapon(index);
+}
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -53,7 +57,7 @@ function gloveTexture() {
  * Camera space uses -Z forward. Add group to the camera and camera to scene.
  * Original-mode models and asset caches are never read or modified here. */
 export class ProceduralViewmodel {
-  constructor({ assets, onError = () => {}, weaponFactory = createEnhancedWeapon } = {}) {
+  constructor({ assets, onError = () => {}, weaponFactory = loadEnhancedWeapon } = {}) {
     this.assets = assets;
     this.onError = onError;
     this._weaponFactory = weaponFactory;
@@ -197,7 +201,7 @@ export class ProceduralViewmodel {
 
   async setWeapon(index, {original = false} = {}) {
     if (this._disposed) return false;
-    const selected = Number.isInteger(index) && ENHANCED_WEAPON_SPECS[index] ? index : 0;
+    const selected = Number.isInteger(index) && index >= 0 && index < 4 ? index : 0;
     const originalGrenade=Boolean(original&&selected===2);
     const token = ++this._generation;
     if (!this._disposed && this._weaponRecord && this.weapon === selected && this._originalGrenadeMode===originalGrenade) return true;

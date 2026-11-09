@@ -44,6 +44,17 @@ test('settings survive reload; blocked/corrupt storage falls back to original', 
   assert.doesNotThrow(() => unavailable.setMode('enhanced'));
 });
 
+test('the released game migrates a saved Enhanced setting to Original', () => {
+  let saved = JSON.stringify({ mode: 'enhanced', lighting: false, quality: 'low' });
+  const storage = { getItem: () => saved, setItem: (_, value) => { saved = value; } };
+  const graphics = manager({ storage, allowEnhanced: false });
+  assert.equal(graphics.mode, 'original');
+  assert.equal(JSON.parse(saved).mode, 'original');
+  assert.throws(() => graphics.setMode('enhanced'), RangeError);
+  graphics.setMode('potato');
+  assert.equal(manager({ storage, allowEnhanced: false }).mode, 'potato');
+});
+
 test('pending asset textures use the current mode, respect GPU caps, and retain identity', async () => {
   const texture = new THREE.Texture();
   texture.anisotropy = 4;

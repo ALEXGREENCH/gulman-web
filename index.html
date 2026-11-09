@@ -5,9 +5,8 @@
   <meta name="theme-color" content="#000000">
   <meta name="description" content="Гульмэн 3D: В поисках утраченного искусства. Экспериментальная браузерная версия с оригинальными локациями, персонажами и музыкой.">
   <title>Гульмэн 3D — В поисках утраченного искусства</title>
-  <link rel="stylesheet" href="./style.css?v=20261109-17">
+  <link rel="stylesheet" href="./style.css?v=20261109-19">
   <link rel="stylesheet" href="./original-ui.css?v=20261109-10">
-  <link rel="stylesheet" href="./enhanced.css?v=20261109-10">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 </head>
 <body>
@@ -36,8 +35,6 @@
       <button id="pause-button" type="button" title="Пауза (Esc)" aria-label="Пауза">Ⅱ</button>
     </div>
     <img id="crosshair" alt="" width="53" height="49" aria-hidden="true"><div id="hitmarker" aria-hidden="true">×</div>
-    <div id="enhanced-controls" hidden><span>ПКМ — прицел · R — перезарядка · Ctrl — присесть / подкат</span><strong id="combat-state" role="status"></strong></div>
-    <div id="reload-meter" hidden aria-label="Перезарядка"><i id="reload-progress"></i></div>
     <div id="prompt" role="status"></div>
     <div class="health">
       <span id="hero-name">Гульмэн</span><img id="health-icon" alt="Здоровье" width="124" height="137"><span id="health-value">100</span><i id="health-bar" hidden></i>
@@ -52,12 +49,12 @@
     <div id="damage" aria-hidden="true"></div>
     <div id="touch-controls" aria-label="Сенсорное управление">
       <div class="dpad"><button type="button" data-key="KeyW" aria-label="Вперёд">▲</button><button type="button" data-key="KeyA" aria-label="Влево">◀</button><button type="button" data-key="KeyS" aria-label="Назад">▼</button><button type="button" data-key="KeyD" aria-label="Вправо">▶</button></div>
-      <div class="touch-actions"><button id="touch-aim" type="button" aria-label="Прицелиться" aria-pressed="false">◎</button><button id="touch-reload" type="button" aria-label="Перезарядить">R</button><button id="touch-fire" type="button" aria-label="Стрелять">●</button><button type="button" data-key="Space" aria-label="Прыжок">↑</button><button type="button" data-key="KeyE" aria-label="Действие">E</button></div>
+      <div class="touch-actions"><button id="touch-fire" type="button" aria-label="Стрелять">●</button><button type="button" data-key="Space" aria-label="Прыжок">↑</button><button type="button" data-key="KeyE" aria-label="Действие">E</button></div>
     </div>
   </section>
   <div id="toast" role="status"></div>
   <section id="loading" hidden aria-label="Загрузка уровня" aria-live="polite"><div class="loading-content"><h2 id="loading-title">Загрузка уровня</h2><p id="loading-status" role="status">Подготовка игры…</p><div class="indeterminate" aria-hidden="true"></div></div></section>
   <button id="sound-unlock" type="button" hidden>Включить звук</button>
-  <script type="module" src="./js/app.js?v=20261109-18"></script>
+  <script type="module" src="./js/app.js?v=20261109-19"></script>
 </body>
 </html>

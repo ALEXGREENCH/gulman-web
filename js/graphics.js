@@ -179,9 +179,10 @@ async function defaultEnvironmentLoader(url) {
  * groundY can instead provide the measured floor under an airborne player.
  */
 export class GraphicsManager {
-  constructor({ onChange = () => {}, storage = browserStorage(), document: ownerDocument = globalThis.document, loadEnvironment = defaultEnvironmentLoader } = {}) {
+  constructor({ onChange = () => {}, storage = browserStorage(), document: ownerDocument = globalThis.document, loadEnvironment = defaultEnvironmentLoader, allowEnhanced = true } = {}) {
     this.onChange = onChange;
     this.storage = storage;
+    this.allowEnhanced = allowEnhanced;
     this.document = ownerDocument;
     this._loadEnvironment = loadEnvironment;
     this._assets = null;
@@ -196,9 +197,10 @@ export class GraphicsManager {
     this.quality = 'auto';
     try {
       const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? 'null');
-      if (Object.hasOwn(GRAPHICS_MODES, saved?.mode)) this.mode = saved.mode;
+      if (this._supportsMode(saved?.mode)) this.mode = saved.mode;
       if (typeof saved?.lighting === 'boolean') this.lighting = saved.lighting;
       if (['auto', 'high', 'low'].includes(saved?.quality)) this.quality = saved.quality;
+      if (!allowEnhanced && saved?.mode === 'enhanced') this._persist();
     } catch { /* Storage is optional, including private browsing. */ }
     this._renderer = null;
     this._scene = null;
@@ -270,6 +272,10 @@ export class GraphicsManager {
 
   _persist() {
     try { this.storage?.setItem(STORAGE_KEY, JSON.stringify({ mode: this.mode, lighting: this.lighting, quality: this.quality })); } catch { /* Keep working without persistent storage. */ }
+  }
+
+  _supportsMode(mode) {
+    return Object.hasOwn(GRAPHICS_MODES, mode) && (this.allowEnhanced || mode !== 'enhanced');
   }
 
   _applyDocument() {
@@ -961,7 +967,7 @@ export class GraphicsManager {
   }
 
   setMode(mode, { renderer = this._renderer, scene = this._scene, player = this._player } = {}) {
-    if (!Object.hasOwn(GRAPHICS_MODES, mode)) throw new RangeError(`Неизвестный режим графики: ${mode}`);
+    if (!this._supportsMode(mode)) throw new RangeError(`Недоступный режим графики: ${mode}`);
     const previous = this.mode;
     this.mode = mode;
     if (mode === 'enhanced') void this.prepareEnvironment();
