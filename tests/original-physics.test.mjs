@@ -21,13 +21,18 @@ function driver(world, point, hz=60) {
   return {motion,p,v,tick};
 }
 
-test('DCE starts at a walk, accelerates with sprint, and brakes with inertia',()=>{
+test('DCE returns from a sprint to normal movement while W stays held',()=>{
   const world=flatWorld(),run=driver(world,[0,.03,0]),walk=driver(world,[0,.03,0]),back=driver(world,[0,.03,0]);
   run.tick({forward:1,sprint:true});assert.ok(run.v.z>0&&run.v.z<1);
   for(let i=0;i<60;i++){run.tick({forward:1,sprint:true});walk.tick({forward:1});back.tick({forward:-1,sprint:true});}
   assert.ok(run.v.z>5.4&&run.v.z<5.5);
-  assert.ok(walk.v.z>2.95&&walk.v.z<3);
-  assert.ok(Math.abs(walk.v.z+back.v.z)<1e-9);
+  assert.ok(walk.v.z>4.29&&walk.v.z<4.31);
+  assert.ok(back.v.z> -3&&back.v.z< -2.95);
+  for(let i=0;i<60;i++){
+    run.tick({forward:1});
+    assert.ok(run.v.z>=4.29,'releasing sprint must not slow forward movement to a short step');
+  }
+  assert.ok(Math.abs(run.v.z-walk.v.z)<.001);
   const z=run.p.z;run.tick();assert.ok(run.p.z>z&&run.v.z>0);
   for(let i=0;i<60;i++)run.tick();assert.ok(run.v.length()<.002);
 });

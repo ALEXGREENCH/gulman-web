@@ -18,7 +18,7 @@ test('late menu unlock does not exit resumed gameplay; re-lock is requested once
   change(null);assert.equal(mouse.state,'available');assert.deepEqual(counts(),[1,1]);
   mouse.request();mouse.request();change(target);
   assert.equal(mouse.state,'locked');assert.deepEqual(counts(),[2,1]);
-  change(null);assert.equal(mouse.state,'available');
+  change(null);assert.equal(mouse.state,'available');assert.equal(mouse.reason,'released');
   assert.deepEqual(states.map(([state])=>state),['requesting','locked','idle','available','requesting','locked','available']);
   mouse.stop();
 });
@@ -64,8 +64,8 @@ test('a void-returning browser request still handles the native error event',t=>
 
 for(const [name,state,reason] of [
   ['SecurityError','drag','blocked'],
-  ['NotAllowedError','available','activation'],
-  ['WrongDocumentError','available','focus'],
+  ['NotAllowedError','drag','activation'],
+  ['WrongDocumentError','drag','focus'],
 ]){
   test(`${name} reports ${reason} even when the native error event arrives first`,async t=>{
     const {mouse,doc,target,states}=fixture();
@@ -85,16 +85,16 @@ test('an Escape cooldown is retryable, not a permanent security denial', async (
   const {mouse,target,change}=fixture();
   target.requestPointerLock=()=>Promise.reject(new DOMException('Pointer lock cannot be acquired immediately after the user has exited the lock.', 'SecurityError'));
   mouse.start();await Promise.resolve();
-  assert.equal(mouse.state,'available');assert.equal(mouse.reason,'released');
+  assert.equal(mouse.state,'drag');assert.equal(mouse.reason,'released');
   target.requestPointerLock=()=>Promise.resolve();
   mouse.request();change(target);assert.equal(mouse.state,'locked');mouse.stop();change(null);
 });
 
 test('drag choice survives pause and releases an abandoned request that succeeds late',()=>{
   const {mouse,target,change,counts}=fixture();
-  mouse.start();mouse.useDrag();assert.equal(mouse.waiting,false);
+  mouse.start();mouse.useDrag();assert.equal(mouse.state,'drag');
   change(target);assert.deepEqual(counts(),[1,1]);assert.equal(mouse.state,'drag');
   change(null);mouse.stop();mouse.start();assert.deepEqual(counts(),[1,1]);
-  assert.equal(mouse.reason,'chosen');assert.equal(mouse.waiting,false);
+  assert.equal(mouse.reason,'chosen');
   mouse.request();change(target);assert.equal(mouse.state,'locked');mouse.stop();change(null);
 });

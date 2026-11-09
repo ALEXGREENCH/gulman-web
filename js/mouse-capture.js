@@ -1,5 +1,4 @@
-/** Pointer Lock is asynchronous: a late event from a menu transition must not
- * pause the next session or turn the click used to re-lock into a shot. */
+/** Manage browser Pointer Lock independently of the running game. */
 export class MouseCapture {
   constructor(document, target, onChange) {
     this.document=document;this.target=target;this.onChange=onChange;
@@ -13,7 +12,6 @@ export class MouseCapture {
     });
   }
   get locked(){return this.document.pointerLockElement===this.target;}
-  get waiting(){return this.state==='available'||this.state==='requesting'||(this.state==='drag'&&!this.prefersDrag);}
   setState(state,reason=null){
     if(state===this.state&&reason===this.reason)return;
     this.state=state;this.reason=reason;this.onChange(state,reason);
@@ -58,15 +56,15 @@ export class MouseCapture {
     if(this.locked){this.changed();return;}
     if(error?.name==='SecurityError'){
       // Chromium uses SecurityError for its short post-Esc cooldown too.
-      if(/exited the lock/i.test(error.message??'')){this.setState('available','released');return;}
+      if(/exited the lock/i.test(error.message??'')){this.setState('drag','released');return;}
       this.setState('drag','blocked');return;
     }
-    if(error?.name==='InUseAttributeError'){this.setState('available','busy');return;}
+    if(error?.name==='InUseAttributeError'){this.setState('drag','busy');return;}
     if(error?.name==='WrongDocumentError'||error?.name==='InvalidStateError'){
-      this.setState('available','focus');return;
+      this.setState('drag','focus');return;
     }
     if(error?.name==='NotAllowedError'){
-      this.setState('available','activation');return;
+      this.setState('drag','activation');return;
     }
     this.setState('drag',error?.name==='NotSupportedError'?'unsupported':reason);
   }
@@ -78,6 +76,6 @@ export class MouseCapture {
       return;
     }
     this.releasing=false;
-    if(this.active&&this.state==='locked')this.setState('available');
+    if(this.active&&this.state==='locked')this.setState('available','released');
   }
 }

@@ -4,7 +4,7 @@ import { Box3, Triangle, Vector3 } from 'three';
 // Distances and accelerations are converted from 100 source units per metre.
 export const DCE = Object.freeze({
   radii: Object.freeze([.4, 1, .4]), gravity: 8, airFriction: .1, floorFriction: 10,
-  runForce: 55, walkForce: 30, airControl: .01,
+  runForce: 55, moveForce: 43.43, reverseForce: 30, airControl: .01,
   jumpHeight: .44, jumpSpeed: 4, jumpNormal: .5, skin: .05, tick: 1/120,
 });
 const EPS = 1e-8;
@@ -141,8 +141,8 @@ export class OriginalMovement {
     this.accumulator+=Math.min(dt,.1);
     this.queuedJump||=jump;
     let blocked=false;
-    const strafeForce=sprint?DCE.runForce:DCE.walkForce;
-    const forwardForce=forward>0?strafeForce:DCE.walkForce;
+    const strafeForce=sprint?DCE.runForce:DCE.moveForce;
+    const forwardForce=forward>0?strafeForce:DCE.reverseForce;
     const sin=Math.sin(yaw),cos=Math.cos(yaw);
     // The sweep reports normals in scaled ellipsoid coordinates.
     const slope=this.world.slopeCos;

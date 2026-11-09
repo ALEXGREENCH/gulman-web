@@ -82,6 +82,23 @@ test('Enhanced steadies the idle rig, removes the abrupt loop pose and holds a l
   } finally { skin.dispose(); materials.dispose(); character.dispose(); }
 });
 
+test('walking continues the current leg pose when sprint is released mid-stride', async () => {
+  const character = await make('Gulman');
+  const legs = [4, 5, 6, 7, 8, 9].map(id => character.bones.get(id));
+  try {
+    for (const enhanced of [false, true]) {
+      for (const sprintFrames of [24, 35, 46]) {
+        for (let i = 0; i < 60; i++) character.update(1 / 60, { enhanced });
+        for (let i = 0; i < sprintFrames; i++) character.update(1 / 60, { enhanced, moving: true, running: true });
+        const before = legs.map(bone => bone.quaternion.clone());
+        character.update(1 / 60, { enhanced, moving: true, running: false });
+        const change = Math.max(...legs.map((bone, i) => bone.quaternion.angleTo(before[i])));
+        assert.ok(change < .4, `sprint released after ${sprintFrames} frames, Enhanced=${enhanced}: leg moved ${change} rad`);
+      }
+    }
+  } finally { character.dispose(); }
+});
+
 test('firearm pose closes three fingers, keeps a trigger finger and opposes the thumb without moving the wrist', () => {
   const source = humanAnatomy.parts.rightHand;
   const pose = point => poseAnatomicalHandPoint(source, ...point, true);

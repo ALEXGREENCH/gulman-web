@@ -246,6 +246,27 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     for (const [id, base] of throwPose) bones.get(id).quaternion.copy(base.clone().slerp(bones.get(id).quaternion, weight));
     group.updateMatrixWorld(true);
   }
+  function walkingPhase(clip) {
+    let bestScore = Infinity, bestTime = 0, offset = 0;
+    for (let i = 0; i < clip.length; i++) {
+      const frame = clip[i], following = clip[(i + 1) % clip.length];
+      for (let sample = 0; sample < 4; sample++) {
+        const blend = sample / 4;
+        let score = 0;
+        for (const id of [4, 5, 6, 7, 8, 9]) {
+          targetRotation.copy(frame.rotations.get(id)).slerp(following.rotations.get(id), blend);
+          score += 1 - Math.abs(targetRotation.dot(bones.get(id).quaternion));
+        }
+        if (score < bestScore) {
+          bestScore = score;
+          bestTime = offset + blend * frame.duration;
+        }
+      }
+      offset += frame.duration;
+    }
+    return bestTime;
+  }
+
   function update(dt, state = false, dead = false) {
     if (disposed) return;
     const s = typeof state === 'object' ? state : { moving: state, dead };
@@ -253,13 +274,18 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     if (s.dead) cancelGrenadeThrow();
     const suffix = { back: 'b', left: 'l', right: 'r', forward: 'f' }[s.direction] ?? 'f';
     const next = s.dead ? 'death' : s.airborne ? 'inair' : s.crouching ? 'duck' : s.moving ? `${s.running === false ? 'move' : 'run'}${suffix}` : 'stand';
-    if (next !== clipName) { clipName = next; elapsed = 0; }
+    const clip = (s.enhanced ? enhancedClips : clips)[next] ?? clips.stand;
+    if (!clip?.length) return;
+    const step = Math.max(0, Math.min(dt, 0.1));
+    if (next !== clipName) {
+      // The walk and run clips put the feet at different points in the
+      // stride. On sprint release, continue from the closest walking pose.
+      elapsed = clipName === `run${suffix}` && next === `move${suffix}` ? walkingPhase(clip) : step;
+      clipName = next;
+    } else elapsed += step;
     // Keep the stock idle rhythm with a small motion around its opening
     // pose so the torso and gun stay steady in Enhanced.
     const quietIdle = s.enhanced && clipName === 'stand' && stand;
-    elapsed += Math.max(0, Math.min(dt, 0.1));
-    const clip = (s.enhanced ? enhancedClips : clips)[clipName] ?? clips.stand;
-    if (!clip?.length) return;
     const duration = clip.reduce((sum, frame) => sum + frame.duration, 0);
     const holdLast = clipName === 'death' || (s.enhanced && clipName === 'inair');
     let time = holdLast ? Math.min(elapsed, duration - 0.00001) : elapsed % duration;

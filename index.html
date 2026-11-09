@@ -5,7 +5,7 @@
   <meta name="theme-color" content="#000000">
   <meta name="description" content="Гульмэн 3D: В поисках утраченного искусства. Экспериментальная браузерная версия с оригинальными локациями, персонажами и музыкой.">
   <title>Гульмэн 3D — В поисках утраченного искусства</title>
-  <link rel="stylesheet" href="./style.css?v=20261109-13">
+  <link rel="stylesheet" href="./style.css?v=20261109-17">
   <link rel="stylesheet" href="./original-ui.css?v=20261109-10">
   <link rel="stylesheet" href="./enhanced.css?v=20261109-10">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
@@ -36,10 +36,6 @@
       <button id="pause-button" type="button" title="Пауза (Esc)" aria-label="Пауза">Ⅱ</button>
     </div>
     <img id="crosshair" alt="" width="53" height="49" aria-hidden="true"><div id="hitmarker" aria-hidden="true">×</div>
-    <section id="mouse-recovery" hidden aria-label="Захват мыши">
-      <p id="mouse-recovery-status" role="status"></p>
-      <div><button id="mouse-retry" type="button">Захватить мышь</button><button id="mouse-drag" type="button">Играть без захвата</button></div>
-    </section>
     <div id="enhanced-controls" hidden><span>ПКМ — прицел · R — перезарядка · Ctrl — присесть / подкат</span><strong id="combat-state" role="status"></strong></div>
     <div id="reload-meter" hidden aria-label="Перезарядка"><i id="reload-progress"></i></div>
     <div id="prompt" role="status"></div>
@@ -62,6 +58,6 @@
   <div id="toast" role="status"></div>
   <section id="loading" hidden aria-label="Загрузка уровня" aria-live="polite"><div class="loading-content"><h2 id="loading-title">Загрузка уровня</h2><p id="loading-status" role="status">Подготовка игры…</p><div class="indeterminate" aria-hidden="true"></div></div></section>
   <button id="sound-unlock" type="button" hidden>Включить звук</button>
-  <script type="module" src="./js/app.js?v=20261109-16"></script>
+  <script type="module" src="./js/app.js?v=20261109-17"></script>
 </body>
 </html>
