@@ -21,10 +21,10 @@ function driver(world, point, hz=60) {
   return {motion,p,v,tick};
 }
 
-test('DCE accelerates and brakes with inertia, with Shift and reverse using the slower rate',()=>{
+test('DCE starts at a walk, accelerates with sprint, and brakes with inertia',()=>{
   const world=flatWorld(),run=driver(world,[0,.03,0]),walk=driver(world,[0,.03,0]),back=driver(world,[0,.03,0]);
-  run.tick({forward:1});assert.ok(run.v.z>0&&run.v.z<1);
-  for(let i=0;i<60;i++){run.tick({forward:1});walk.tick({forward:1,shift:true});back.tick({forward:-1});}
+  run.tick({forward:1,sprint:true});assert.ok(run.v.z>0&&run.v.z<1);
+  for(let i=0;i<60;i++){run.tick({forward:1,sprint:true});walk.tick({forward:1});back.tick({forward:-1,sprint:true});}
   assert.ok(run.v.z>5.4&&run.v.z<5.5);
   assert.ok(walk.v.z>2.95&&walk.v.z<3);
   assert.ok(Math.abs(walk.v.z+back.v.z)<1e-9);
@@ -36,7 +36,7 @@ test('source jump rises at 4 m/s first, carries run momentum and lands consisten
   const results=[];
   for(const hz of [25,60,120]){
     const {motion,p,v,tick}=driver(flatWorld(),[0,.03,0],hz);
-    for(let i=0;i<hz;i++)tick({forward:1});
+    for(let i=0;i<hz;i++)tick({forward:1,sprint:true});
     const base=p.y,z=p.z;tick({jump:true});
     assert.ok(v.y>=3.95&&v.y<=4.01);assert.ok(v.z>4);
     let peak=p.y,frames=1;
@@ -51,16 +51,16 @@ test('source jump rises at 4 m/s first, carries run momentum and lands consisten
 
 test('swept DCE collider slides along a thin wall and also stops against live actors',()=>{
   const {p,tick}=driver(flatWorld(true),[0,.03,-4]);
-  for(let i=0;i<30;i++)tick({forward:1,strafe:1});
+  for(let i=0;i<30;i++)tick({forward:1,strafe:1,sprint:true});
   const alongWall=p.z;
-  for(let i=0;i<24;i++)tick({forward:1,strafe:1});
+  for(let i=0;i<24;i++)tick({forward:1,strafe:1,sprint:true});
   assert.ok(p.x> -1.61&&p.x< -1.50);assert.ok(p.z>alongWall+1.4,`${p.toArray()} after sliding from z=${alongWall}`);
   const actor={pos:new T.Vector3(0,0,2)};
   const body=driver(flatWorld(),[0,.03,0]);
-  for(let i=0;i<60;i++)body.tick({forward:1,actors:[actor]});
+  for(let i=0;i<60;i++)body.tick({forward:1,sprint:true,actors:[actor]});
   assert.ok(body.p.z>1.1&&body.p.z<1.21);
   actor.dead=true;
-  for(let i=0;i<30;i++)body.tick({forward:1,actors:[actor]});
+  for(let i=0;i<30;i++)body.tick({forward:1,sprint:true,actors:[actor]});
   assert.ok(body.p.z>2.5);
 });
 
@@ -81,7 +81,7 @@ test('actual Acropolis ropes carry both edges and the gap at 25, 60 and 120 Hz',
     const {p,tick}=driver(world,[x,-5.1,26.5],hz);
     let supported=0,onRope=0;
     for(let frame=0;p.z>-7.5&&frame<hz*25;frame++){
-      const state=tick({forward:1,yaw:Math.PI});
+      const state=tick({forward:1,yaw:Math.PI,sprint:true});
       // The log is higher than the rope, so stepping down can briefly go airborne.
       if(p.z<25){supported+=Number(state.onGround);onRope++;}
     }
@@ -103,14 +103,14 @@ test('Acropolis log approach reaches the Venus roof with original movement',asyn
     assert.ok(y>-5.5&&y<-5,`expected the approach log at x=${x}, got ${y}`);
     const {motion,p,tick}=driver(world,[x,y+.05,z],hz);
     for(let frame=0;frame<hz*55&&p.z>-9&&p.y>-8;frame++){
-      tick({forward:1,yaw:Math.PI,shift:true});
+      tick({forward:1,yaw:Math.PI});
     }
     assert.ok(p.z<=-9&&p.y>6&&motion.onGround,`${hz} Hz, x=${x}: expected the roof, got ${p.toArray()}`);
 
     let target=null;
     for(let frame=0;frame<hz*20&&p.y>5;frame++){
       const yaw=Math.atan2(venus.pos.x-p.x,venus.pos.z-p.z);
-      tick({forward:1,yaw});
+      tick({forward:1,yaw,sprint:true});
       target=selectInteraction(items,p,world,{totalKeys:1});
       if(target===venus)break;
     }

@@ -124,7 +124,7 @@ test('both Acropolis crossings support a pause and a slightly angled approach in
       const tick = forward => {
         const yaw = grounded ? ropes.heading(position, aim, forward, 0) : aim;
         if (classic) {
-          ({ onGround: grounded } = motion.move(position, velocity, dt, { forward, yaw }));
+          ({ onGround: grounded } = motion.move(position, velocity, dt, { forward, yaw, sprint: true }));
         } else {
           velocity.x = Math.sin(yaw) * forward * 8;
           velocity.z = Math.cos(yaw) * forward * 8;

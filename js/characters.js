@@ -254,10 +254,10 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     const suffix = { back: 'b', left: 'l', right: 'r', forward: 'f' }[s.direction] ?? 'f';
     const next = s.dead ? 'death' : s.airborne ? 'inair' : s.crouching ? 'duck' : s.moving ? `${s.running === false ? 'move' : 'run'}${suffix}` : 'stand';
     if (next !== clipName) { clipName = next; elapsed = 0; }
-    // The stock idle cycle takes only 300 ms. Keep a small, slower motion
-    // around its opening pose so the torso and gun stay steady in Enhanced.
+    // Keep the stock idle rhythm with a small motion around its opening
+    // pose so the torso and gun stay steady in Enhanced.
     const quietIdle = s.enhanced && clipName === 'stand' && stand;
-    elapsed += Math.max(0, Math.min(dt, 0.1)) * (quietIdle ? .5 : 1);
+    elapsed += Math.max(0, Math.min(dt, 0.1));
     const clip = (s.enhanced ? enhancedClips : clips)[clipName] ?? clips.stand;
     if (!clip?.length) return;
     const duration = clip.reduce((sum, frame) => sum + frame.duration, 0);
@@ -268,10 +268,11 @@ export async function createCharacter(name, loadModel, getJSON = defaultGetJSON,
     const current = clip[index];
     const nextFrame = clip[holdLast ? Math.min(index + 1, clip.length - 1) : (index + 1) % clip.length];
     const blend = time / current.duration;
+    const poseWeight = 1 - Math.exp(-dt * (s.enhanced && s.moving ? 32 : 20));
     for (const [id, bone] of bones) {
       targetRotation.copy(current.rotations.get(id)).slerp(nextFrame.rotations.get(id), blend);
-      if (quietIdle) targetRotation.slerp(stand.rotations.get(id), .75);
-      bone.quaternion.slerp(targetRotation, 1 - Math.exp(-dt * 20));
+      if (quietIdle) targetRotation.slerp(stand.rotations.get(id), .8);
+      bone.quaternion.slerp(targetRotation, poseWeight);
     }
     if (throwTime >= 0) {
       throwTime = Math.min(throwDuration, throwTime + Math.max(0, Math.min(dt, .1)));

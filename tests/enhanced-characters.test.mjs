@@ -56,6 +56,11 @@ test('Enhanced steadies the idle rig, removes the abrupt loop pose and holds a l
     }
     assert.ok(idleMotion > .0005 && idleMotion < .003, `steady idle still animates, peak muzzle step ${idleMotion} m`);
 
+    const idleShoulder = shoulder.quaternion.clone();
+    tick({ moving: true, running: true });
+    const sprintResponse = shoulder.quaternion.angleTo(idleShoulder);
+    assert.ok(sprintResponse > .13 && sprintResponse < .25, `first sprint frame responds without jerking, shoulder changed ${sprintResponse} rad`);
+
     for (const state of [{moving: true, running: true}, {moving: true, running: true, direction: 'left'}, {moving: true, running: true, direction: 'right'}, {crouching: true}]) {
       for (let i = 0; i < 60; i++) tick(state);
       const startTorso = torso.quaternion.clone(), startShoulder = shoulder.quaternion.clone(), startKnee = knee.quaternion.clone();
