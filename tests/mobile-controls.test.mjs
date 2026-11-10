@@ -39,7 +39,7 @@ class PointerSurface extends EventTarget {
   }
 }
 
-test('look, fire and movement have independent pointers and release on cancellation or reset', () => {
+test('dragging from fire aims while holding the movement stick and preserves independent look coordinates', () => {
   const [stick, surface, trigger, jump, action] = Array.from({length:5}, () => new PointerSurface());
   const elements = {'#touch-stick':stick,'#touch-look':surface,'#touch-fire':trigger,'#touch-jump':jump,'#touch-interact':action};
   const moves = [], shots = [];
@@ -50,15 +50,17 @@ test('look, fire and movement have independent pointers and release on cancellat
 
   stick.send('pointerdown', 1, 50, 50);
   surface.send('pointerdown', 2, 150, 100);
-  trigger.send('pointerdown', 3);
+  trigger.send('pointerdown', 3, 280, 180);
+  trigger.send('pointermove', 3, 214, 162);
   stick.send('pointermove', 1, 50, 10);
   surface.send('pointermove', 2, 158, 95);
   assert.equal(controls.state.sprint, true);
-  assert.deepEqual(moves, [[8,-5]]);
+  assert.deepEqual(moves, [[-66,-18],[8,-5]]);
   assert.deepEqual(shots, [true]);
 
   trigger.send('pointercancel', 3);
   assert.deepEqual(shots, [true,false]);
+  trigger.send('pointermove', 3, 150, 150);
   assert.equal(controls.state.forward, 1);
   stick.send('lostpointercapture', 1);
   assert.equal(controls.state.forward, 0);
@@ -66,5 +68,5 @@ test('look, fire and movement have independent pointers and release on cancellat
   controls.reset();
   surface.send('pointermove', 2, 200, 200);
   assert.equal(surface.captures.size, 0);
-  assert.deepEqual(moves, [[8,-5]]);
+  assert.deepEqual(moves, [[-66,-18],[8,-5]]);
 });

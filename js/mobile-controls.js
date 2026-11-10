@@ -47,7 +47,7 @@ export function bindTouchControls(root, {look, fire, jump, interact}) {
   const stick = root.querySelector('#touch-stick');
   const fireButton = root.querySelector('#touch-fire');
   const state = {forward: 0, strafe: 0, sprint: false};
-  let originX, originY, radius, lastX, lastY;
+  let originX, originY, radius;
 
   function updateStick(input) {
     Object.assign(state, input);
@@ -72,17 +72,27 @@ export function bindTouchControls(root, {look, fire, jump, interact}) {
       stick.classList.remove('held');
     },
   });
-  function dragLook(event) {
-    look(event.clientX - lastX, event.clientY - lastY);
-    lastX = event.clientX;
-    lastY = event.clientY;
+  function trackLook(element, {start, end} = {}) {
+    let lastX, lastY;
+    return trackPointer(element, {
+      start(event) {
+        lastX = event.clientX;
+        lastY = event.clientY;
+        start?.(event);
+      },
+      move(event) {
+        const dx = event.clientX - lastX;
+        const dy = event.clientY - lastY;
+        lastX = event.clientX;
+        lastY = event.clientY;
+        if (dx || dy) look(dx, dy);
+      },
+      end,
+    });
   }
-  function beginLook(event) {
-    lastX = event.clientX;
-    lastY = event.clientY;
-  }
-  const stopLook = trackPointer(root.querySelector('#touch-look'), {start: beginLook, move: dragLook});
-  const stopFire = trackPointer(fireButton, {
+
+  const stopLook = trackLook(root.querySelector('#touch-look'));
+  const stopFire = trackLook(fireButton, {
     start(event) {
       fireButton.classList.add('held');
       fire(true, event.pointerId);
