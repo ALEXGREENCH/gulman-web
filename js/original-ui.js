@@ -60,9 +60,11 @@ export class OriginalUI {
         this._hideCursor();
         const focusable = [...this.root.querySelectorAll('button:not(:disabled):not([tabindex="-1"]), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
           .filter(element => !element.hidden && element.getClientRects().length);
+        const fullscreen = document.getElementById('fullscreen');
+        if (fullscreen && !fullscreen.hidden) focusable.push(fullscreen);
         if (!focusable.length) { event.preventDefault(); return; }
         const first = focusable[0], last = focusable.at(-1);
-        if (!this.root.contains(document.activeElement) || (event.shiftKey && document.activeElement === first)) {
+        if (!focusable.includes(document.activeElement) || (event.shiftKey && document.activeElement === first)) {
           event.preventDefault();
           (event.shiftKey ? last : first).focus();
         } else if (!event.shiftKey && document.activeElement === last) {
@@ -79,7 +81,8 @@ export class OriginalUI {
     window.addEventListener('blur',this._pointerLeave);
     document.addEventListener('pointerlockchange',this._pointerLock);
     document.addEventListener('keydown', this._keydown, true);
-    window.addEventListener('resize', this._resize);
+    this._layoutObserver = new ResizeObserver(this._resize);
+    this._layoutObserver.observe(this.root);
   }
 
   async init() {
@@ -97,9 +100,21 @@ export class OriginalUI {
   get visible() { return this._visible && !this.root.hidden; }
   get currentMenu() { return this._currentMenu; }
 
+  refreshLayout() { this._fit(); }
+
   _fit() {
-    const availableWidth = this.root.clientWidth || window.innerWidth;
-    const availableHeight = (this.root.clientHeight || window.innerHeight) - (this._comicMode ? 48 : 0);
+    let availableWidth = this.root.clientWidth || window.innerWidth;
+    let availableHeight = this.root.clientHeight || window.innerHeight;
+    const mobileComic = this._comicMode && document.documentElement.hasAttribute('data-touch');
+    const sideRail = mobileComic && availableWidth >= 640 && availableWidth / availableHeight >= 1.65;
+    this.root.classList.toggle('comic-side', sideRail);
+    if (sideRail) availableWidth -= 164;
+    else if (this._comicMode) {
+      const nav = this.root.querySelector('.comic-controls');
+      const bottom = mobileComic && nav ? parseFloat(getComputedStyle(nav).bottom) || 0 : 0;
+      availableHeight -= mobileComic ? (nav?.offsetHeight ?? 48) + bottom + 6 : 48;
+    }
+    this.root.style.setProperty('--comic-bottom-space', `${(this.root.clientHeight || window.innerHeight) - availableHeight}px`);
     const fit=this.shopControls?fitShopLayout([availableWidth,availableHeight],this._referenceSize,this._imageSize):fitOriginalArtwork([availableWidth,availableHeight],this._referenceSize,this._imageSize);
     this.root.classList.toggle('original-shop-stacked',!!fit.stacked);
     if(this.shopControls){
@@ -349,7 +364,7 @@ export class OriginalUI {
     window.removeEventListener('blur',this._pointerLeave);
     document.removeEventListener('pointerlockchange',this._pointerLock);
     document.removeEventListener('keydown', this._keydown, true);
-    window.removeEventListener('resize', this._resize);
+    this._layoutObserver.disconnect();
     this.root.replaceChildren();
     this.root.classList.remove('original-ui');
   }

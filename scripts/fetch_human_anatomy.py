@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT.parents[1] / "work" / "makehuman-source"
-OUT = ROOT / "assets" / "enhanced" / "characters"
+OUT = ROOT / "assets" / "first-person"
 COMMIT = "a8bc2d54ff0ac92e78ff71431b1023eda42bf482"
 REPO = "https://github.com/makehumancommunity/makehuman"
 RAW = f"https://raw.githubusercontent.com/makehumancommunity/makehuman/{COMMIT}/"

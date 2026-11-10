@@ -2,16 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-import {humanAnatomy} from '../assets/enhanced/characters/human-anatomy.js';
-import {humanHead} from '../assets/enhanced/characters/human-head.js';
+import {humanAnatomy} from '../assets/first-person/human-anatomy.js';
 
 test('the official CC0 anatomical derivative is pinned, credited and bounded',async()=>{
-  const root=new URL('../',import.meta.url),manifest=JSON.parse(await readFile(new URL('assets/enhanced/characters/human-anatomy-manifest.json',root),'utf8'));
+  const root=new URL('../',import.meta.url),manifest=JSON.parse(await readFile(new URL('assets/first-person/human-anatomy-manifest.json',root),'utf8'));
   assert.equal(manifest.license,'CC0-1.0');assert.match(manifest.sourceUrl,/raw\.githubusercontent\.com\/makehumancommunity\/makehuman\/[a-f0-9]{40}\/makehuman\/data\/3dobjs\/base\.obj$/);
   assert.ok(manifest.authors.includes('MakeHuman Community'));assert.match(manifest.sourceSha256,/^[a-f0-9]{64}$/);
   const bytes=await readFile(new URL(manifest.derivative.path,root));assert.equal(bytes.length,manifest.derivative.bytes);assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.derivative.sha256);assert.ok(bytes.length<400*1024);
   assert.equal(humanAnatomy.units,'metres');assert.equal(humanAnatomy.referenceHumanHeight,1.8);assert.deepEqual(Object.keys(humanAnatomy.parts),['leftHand','rightHand']);
-  const license=await readFile(new URL('assets/enhanced/characters/MAKEHUMAN-CC0.md',root),'utf8');assert.match(license,/Creative Commons CC0 1.0 Universal/);
+  const license=await readFile(new URL('assets/first-person/MAKEHUMAN-CC0.md',root),'utf8');assert.match(license,/Creative Commons CC0 1.0 Universal/);
 });
 
 test('both real hands retain five articulated finger landmark chains, finite anatomy and valid normals',()=>{
@@ -36,14 +35,4 @@ test('hand topology is one connected anatomical surface, with no helper joint cu
     const visited=new Set([0]),pending=[0];while(pending.length)for(const next of edges[pending.pop()])if(!visited.has(next)){visited.add(next);pending.push(next);}
     assert.equal(visited.size,welded.size);
   }
-});
-
-test('the imported head keeps bounded human proportions and aligned face landmarks without shoulder fragments',async()=>{
-  const root=new URL('../',import.meta.url),manifest=JSON.parse(await readFile(new URL('assets/enhanced/characters/human-head-manifest.json',root),'utf8'));
-  const bytes=await readFile(new URL(manifest.derivative.path,root));assert.equal(bytes.length,manifest.derivative.bytes);assert.equal(createHash('sha256').update(bytes).digest('hex'),manifest.derivative.sha256);assert.equal(manifest.license,'CC0-1.0');assert.ok(bytes.length<225*1024);
-  const p=humanHead;assert.equal(p.indices.length/3,4000);assert.equal(p.normals.length,p.positions.length);assert.equal(p.uv.length,p.positions.length/3*2);assert.ok(p.indices.every(i=>Number.isInteger(i)&&i>=0&&i<p.positions.length/3));
-  assert.ok([...p.positions,...p.normals,...p.uv].every(Number.isFinite));
-  assert.ok(p.bounds.max[0]-p.bounds.min[0]<.21,'shoulders must not influence head fitting');assert.ok(p.bounds.max[1]>.25&&p.bounds.max[1]<.30);assert.ok(p.bounds.min[1]>-.006);
-  assert.ok(p.chinY<p.mouthY&&p.mouthY<p.noseTip[1]&&p.noseTip[1]<p.eyesY);assert.ok(p.eyes.left[0]>0&&p.eyes.right[0]<0);assert.ok(Math.abs(p.eyes.left[0]+p.eyes.right[0])<1e-6);
-  assert.equal(p.hasOpenEyeSockets,false);assert.equal(p.boundaryLoops.length,1);assert.equal(p.boundaryLoops[0].kind,'neck');assert.ok(p.boundaryLoops[0].vertices.every(v=>Math.abs(v[1]+.005403)<.000001));
 });

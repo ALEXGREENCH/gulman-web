@@ -5,8 +5,9 @@
   <meta name="theme-color" content="#000000">
   <meta name="description" content="Гульмэн 3D: В поисках утраченного искусства. Экспериментальная браузерная версия с оригинальными локациями, персонажами и музыкой.">
   <title>Гульмэн 3D — В поисках утраченного искусства</title>
-  <link rel="stylesheet" href="./style.css?v=20261109-19">
+  <link rel="stylesheet" href="./style.css?v=20261111-20">
   <link rel="stylesheet" href="./original-ui.css?v=20261109-10">
+  <link rel="stylesheet" href="./mobile.css?v=20261111-20">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 </head>
 <body>
@@ -48,13 +49,36 @@
     <canvas id="minimap" width="220" height="220" hidden aria-label="Карта уровня"></canvas>
     <div id="damage" aria-hidden="true"></div>
     <div id="touch-controls" aria-label="Сенсорное управление">
-      <div class="dpad"><button type="button" data-key="KeyW" aria-label="Вперёд">▲</button><button type="button" data-key="KeyA" aria-label="Влево">◀</button><button type="button" data-key="KeyS" aria-label="Назад">▼</button><button type="button" data-key="KeyD" aria-label="Вправо">▶</button></div>
-      <div class="touch-actions"><button id="touch-fire" type="button" aria-label="Стрелять">●</button><button type="button" data-key="Space" aria-label="Прыжок">↑</button><button type="button" data-key="KeyE" aria-label="Действие">E</button></div>
+      <div id="touch-look" aria-hidden="true"></div>
+      <div id="touch-stick" aria-label="Стик движения. Потяни до края для бега">
+        <div class="stick-ring"><i></i></div><span>БЕГ</span>
+      </div>
+      <div class="touch-actions" role="group" aria-label="Действия">
+        <button id="touch-interact" type="button" aria-label="Взаимодействовать"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 9-9 9-9-9Z"/><path d="M12 9v6M9 12h6"/></svg></button>
+        <button id="touch-jump" type="button" aria-label="Прыжок"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17V4m-6 6 6-6 6 6M6 21h12"/></svg></button>
+        <button id="touch-fire" type="button" aria-label="Стрелять"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/></svg></button>
+      </div>
+      <div class="touch-weapons" role="group" aria-label="Оружие">
+        <button type="button" data-weapon="0" aria-label="Пистолет" aria-pressed="true"><img alt=""></button>
+        <button type="button" data-weapon="1" aria-label="Автомат" aria-pressed="false"><img alt=""></button>
+        <button type="button" data-weapon="2" aria-label="Гранаты" aria-pressed="false"><img alt=""></button>
+        <button type="button" data-weapon="3" aria-label="БигГан" aria-pressed="false"><img alt=""></button>
+      </div>
+      <div class="touch-tools" role="group" aria-label="Камера, герой и карта">
+        <button id="touch-camera" type="button" aria-label="Сменить камеру">1Л</button>
+        <button id="touch-hero" type="button" aria-label="Сменить героя">Г</button>
+        <button id="touch-map" type="button" aria-label="Карта" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3ZM9 3v15M15 6v15"/></svg></button>
+        <button id="touch-briefing" type="button" aria-label="Брифинг"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6C9 4 6 4 3 5v14c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Zm0 0v14"/></svg></button>
+        <button id="touch-pause" type="button" aria-label="Пауза">Ⅱ</button>
+      </div>
     </div>
   </section>
   <div id="toast" role="status"></div>
   <section id="loading" hidden aria-label="Загрузка уровня" aria-live="polite"><div class="loading-content"><h2 id="loading-title">Загрузка уровня</h2><p id="loading-status" role="status">Подготовка игры…</p><div class="indeterminate" aria-hidden="true"></div></div></section>
+  <button id="fullscreen" type="button" aria-label="На весь экран" aria-pressed="false" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path class="expand-icon" d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/><path class="collapse-icon" d="M4 9h5V4m11 5h-5V4M9 20v-5H4m11 5v-5h5"/></svg>
+  </button>
   <button id="sound-unlock" type="button" hidden>Включить звук</button>
-  <script type="module" src="./js/app.js?v=20261109-19"></script>
+  <script type="module" src="./js/app.js?v=20261111-20"></script>
 </body>
 </html>

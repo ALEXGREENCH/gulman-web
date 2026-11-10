@@ -1,0 +1,283 @@
+/* Touch layout keeps the painted interface and leaves the center for aiming. */
+:root {
+  --safe-top: max(9px, env(safe-area-inset-top));
+  --safe-left: max(14px, calc(env(safe-area-inset-left) + 8px));
+  --safe-right: max(14px, calc(env(safe-area-inset-right) + 8px));
+  --safe-bottom: max(10px, calc(env(safe-area-inset-bottom) + 6px));
+  --touch-ink: #f9edc5;
+  --touch-line: #ebcf887d;
+  --touch-panel: #17160ddd;
+}
+#game {height:100vh;height:100dvh}
+html[data-touch], html[data-touch] body {overscroll-behavior:none}
+#fullscreen {
+  position:fixed;
+  z-index:35;
+  top:var(--safe-top);
+  right:var(--safe-right);
+  display:grid;
+  place-items:center;
+  width:44px;
+  height:44px;
+  padding:0;
+  border:1px solid var(--touch-line);
+  border-radius:12px;
+  background:var(--touch-panel);
+  color:var(--touch-ink);
+}
+#fullscreen svg, #touch-controls svg {
+  width:22px;
+  height:22px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.6;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#fullscreen .collapse-icon, #fullscreen[aria-pressed=true] .expand-icon {display:none}
+#fullscreen[aria-pressed=true] .collapse-icon {display:block}
+html:not([data-touch]) #fullscreen {top:auto;bottom:var(--safe-bottom);width:36px;height:36px}
+html:not([data-touch]) #hud:not([hidden]) ~ #fullscreen {left:50%;right:auto;bottom:20px;transform:translateX(-50%)}
+
+html[data-touch] #touch-controls {
+  display:block;
+  position:absolute;
+  inset:0;
+  --stick-size:clamp(98px, 31dvh, 134px);
+  --action-size:clamp(46px, 14dvh, 60px);
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+}
+html[data-touch] .top-actions, html[data-touch] .controls-hint,
+html[data-touch] .inventory .weapon, html[data-touch] #hero-name {display:none}
+#touch-look {
+  position:absolute;
+  z-index:1;
+  inset:0 0 0 34%;
+  pointer-events:auto;
+  touch-action:none;
+}
+#touch-stick {
+  position:absolute;
+  z-index:2;
+  left:var(--safe-left);
+  bottom:calc(var(--safe-bottom) + 48px);
+  width:var(--stick-size);
+  height:var(--stick-size);
+  pointer-events:auto;
+  touch-action:none;
+}
+#touch-stick .stick-ring {
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  border:1px solid var(--touch-line);
+  border-radius:50%;
+  background:#1c1a0d55;
+  box-shadow:inset 0 0 0 5px #17160d55,0 2px 6px #0006;
+}
+.stick-ring::before {
+  content:"";
+  position:absolute;
+  inset:18%;
+  border:1px dashed #e5cb7466;
+  border-radius:50%;
+}
+#touch-stick i {
+  width:43%;
+  height:43%;
+  border:1px solid #edd592a8;
+  border-radius:50%;
+  background:radial-gradient(circle at 42% 35%,#e4d69da8,#827047c9 72%);
+  box-shadow:0 2px 8px #0008;
+  transform:translate(var(--stick-x,0px),var(--stick-y,0px));
+}
+#touch-stick span {
+  position:absolute;
+  left:50%;
+  top:100%;
+  padding-top:4px;
+  transform:translateX(-50%);
+  color:#f3e6ba;
+  font:700 9px/1 system-ui,sans-serif;
+  letter-spacing:.12em;
+  opacity:0;
+}
+#touch-stick.sprinting .stick-ring {border-color:#ffe18c;box-shadow:0 0 12px #edc77680}
+#touch-stick.held span {opacity:.65}
+#touch-stick.sprinting span {color:#ffe18c;opacity:1}
+
+.touch-actions,.touch-tools,.touch-weapons {
+  position:absolute;
+  z-index:2;
+  right:var(--safe-right);
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.touch-actions {bottom:calc(var(--safe-bottom) + 58px);align-items:flex-end}
+.touch-tools {top:var(--safe-top)}
+html[data-touch] #hud:not([hidden]):has(~ #fullscreen:not([hidden])) .touch-tools {right:calc(var(--safe-right) + 50px)}
+.touch-weapons {bottom:var(--safe-bottom)}
+html[data-touch] #hud :where(#touch-controls) button {
+  width:44px;
+  height:44px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:1px solid var(--touch-line);
+  border-radius:10px;
+  color:var(--touch-ink);
+  background:var(--touch-panel);
+  font:700 13px/1 system-ui,sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+html[data-touch] #hud .touch-tools button[aria-pressed=true],
+html[data-touch] #hud .touch-weapons button[aria-pressed=true] {
+  border-color:#ffe298;
+  background:#62512ae8;
+  box-shadow:inset 0 -2px #ffe18ca8;
+}
+html[data-touch] #hud .touch-actions button {
+  width:var(--action-size);
+  height:var(--action-size);
+  border-radius:50%;
+  touch-action:none;
+}
+html[data-touch] #hud #touch-fire {
+  width:calc(var(--action-size) + 12px);
+  height:calc(var(--action-size) + 12px);
+  border-color:#efce7cc9;
+  background:#4d371fe0;
+}
+html[data-touch] #hud #touch-fire.held,
+html[data-touch] #hud .touch-actions button:active {background:#956b37}
+html[data-touch] #hud #touch-interact {opacity:.64}
+html[data-touch] #hud #touch-interact.available {
+  opacity:1;
+  border-color:#ffdd80;
+  color:#fff5d6;
+  box-shadow:0 0 10px #f4c55566;
+}
+.touch-weapons img {width:36px;height:25px;pointer-events:none}
+
+html[data-touch] .mission {
+  top:var(--safe-top);
+  left:var(--safe-left);
+  max-width:min(310px, calc(100vw - 344px));
+  gap:2px;
+  padding:6px 9px;
+  border-left:2px solid #e8c77f;
+  border-radius:0 8px 8px 0;
+  color:var(--touch-ink);
+  background:linear-gradient(90deg,#17160de0,#17160d90);
+  font-family:system-ui,sans-serif;
+}
+html[data-touch] #level-label,html[data-touch] #objective-distance {font-size:10px}
+html[data-touch] #level-label {color:#e9ce8c}
+html[data-touch] #objective {font-size:13px;font-weight:650}
+html[data-touch] .health {
+  left:var(--safe-left);
+  bottom:var(--safe-bottom);
+  align-items:center;
+  gap:4px;
+}
+html[data-touch] #health-icon {width:38px}
+html[data-touch] #health-value,html[data-touch] .counter>span {
+  margin:0;
+  font:650 15px/1 system-ui,sans-serif;
+  color:var(--touch-ink);
+}
+html[data-touch] .inventory {
+  left:calc(var(--safe-left) + 84px);
+  right:auto;
+  bottom:calc(var(--safe-bottom) + 6px);
+  gap:8px;
+  align-items:center;
+}
+html[data-touch] .counter {align-items:center}
+html[data-touch] #money-icon,html[data-touch] #ammo-icon {width:23px}
+html[data-touch] #crosshair {width:26px;height:26px}
+html[data-touch] #prompt {bottom:31%;max-width:54vw;font:600 13px/1.3 system-ui,sans-serif}
+html[data-touch] #minimap {
+  z-index:3;
+  top:calc(var(--safe-top) + 50px);
+  right:var(--safe-right);
+  width:min(156px,42dvh);
+  height:min(156px,42dvh);
+  border-radius:10px;
+}
+
+html[data-touch] .original-ui.has-comic .original-ui-stage {
+  top:calc(50% - var(--comic-bottom-space, 56px) / 2);
+}
+html[data-touch] .original-ui.has-comic>.comic-controls {
+  bottom:var(--safe-bottom);
+  display:flex;
+  flex-wrap:wrap;
+  max-width:calc(100% - 20px);
+  gap:6px;
+  padding:0;
+  background:transparent;
+  font:650 13px/1.2 system-ui,sans-serif;
+}
+html[data-touch] .original-ui.has-comic>.comic-controls button {
+  min-height:44px;
+  min-width:44px;
+  padding:6px 9px;
+  border-radius:10px;
+  background:var(--touch-panel);
+  color:var(--touch-ink);
+  font:inherit;
+}
+html[data-touch] .original-ui.has-comic>.comic-controls button[data-command=COMIC_NEXT] {
+  background:#dcc88f;
+  color:#241c0e;
+  border-color:#f6dfa0;
+}
+html[data-touch] .original-ui.comic-side .original-ui-stage {left:calc(50% - 82px)}
+html[data-touch] .original-ui.comic-side>.comic-controls {
+  left:auto;
+  right:var(--safe-right);
+  top:calc((100% + var(--safe-top) + 44px - var(--safe-bottom)) / 2);
+  bottom:auto;
+  width:134px;
+  max-height:calc(100% - var(--safe-top) - var(--safe-bottom) - 48px);
+  overflow-y:auto;
+  transform:translateY(-50%);
+}
+html[data-touch] .original-ui.comic-side>.comic-controls button:not([data-command=COMIC_PREV],.comic-zoom) {width:100%}
+
+@media (max-width:630px) {
+  html[data-touch] .mission {top:calc(var(--safe-top) + 51px);max-width:calc(100% - 2 * var(--safe-right))}
+  html[data-touch] #minimap {top:calc(var(--safe-top) + 105px)}
+}
+@media (max-width:380px) {
+  .touch-tools {gap:3px}
+  html[data-touch] #hud .touch-tools button {width:40px}
+}
+@media (orientation:portrait) {
+  html[data-touch] #touch-controls {--stick-size:clamp(96px,30vw,130px);--action-size:clamp(44px,13vw,56px)}
+  .touch-actions {width:114px;justify-content:flex-end;flex-wrap:wrap}
+  #touch-fire {margin-left:34px}
+}
+.comic-zoom {display:none}
+html[data-touch] .original-ui.has-comic>.comic-controls .comic-zoom {display:block;font-size:22px}
+html[data-touch] .comic-stage.comic-enlarged {
+  overflow:auto;
+  overscroll-behavior:contain;
+  touch-action:pan-x pan-y;
+}
+html[data-touch] .comic-stage.comic-enlarged :is(.comic-art,.comic-text) {
+  width:200%;
+  height:200%;
+}
+@media (orientation:portrait) and (max-width:450px) {
+  html[data-touch] .inventory {
+    left:var(--safe-left);
+    bottom:calc(var(--safe-bottom) + 49px);
+  }
+  html[data-touch] #touch-stick {bottom:calc(var(--safe-bottom) + 89px)}
+}

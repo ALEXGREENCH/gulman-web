@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "asset": "MakeHuman hm08 anatomical hands",
+  "license": "CC0-1.0",
+  "retrieved": "2026-11-09",
+  "source": "https://github.com/makehumancommunity/makehuman/blob/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/makehuman/data/3dobjs/base.obj",
+  "sourceUrl": "https://raw.githubusercontent.com/makehumancommunity/makehuman/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/makehuman/data/3dobjs/base.obj",
+  "sourceCommit": "a8bc2d54ff0ac92e78ff71431b1023eda42bf482",
+  "sourceSha256": "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c",
+  "licenseUrl": "https://raw.githubusercontent.com/makehumancommunity/makehuman/a8bc2d54ff0ac92e78ff71431b1023eda42bf482/LICENSE.ASSETS.md",
+  "authors": [
+    "Data Collection AB",
+    "Joel Palmius",
+    "Jonas Hauquier",
+    "MakeHuman Community"
+  ],
+  "derivative": {
+    "path": "assets/first-person/human-anatomy.js",
+    "bytes": 372184,
+    "sha256": "c2e20eda1225531c745b4955d0d95fd01418675c0c0f16bd00244263c66666a1",
+    "parts": {
+      "leftHand": {
+        "vertices": 1909,
+        "triangles": 3328,
+        "bounds": {
+          "min": [
+            -0.077944,
+            -0.023771,
+            -0.02319
+          ],
+          "max": [
+            0.057364,
+            0.190933,
+            0.049942
+          ]
+        }
+      },
+      "rightHand": {
+        "vertices": 1909,
+        "triangles": 3328,
+        "bounds": {
+          "min": [
+            -0.077944,
+            -0.023771,
+            -0.049942
+          ],
+          "max": [
+            0.057364,
+            0.190933,
+            0.02319
+          ]
+        }
+      }
+    }
+  },
+  "processing": [
+    "Keep official body faces; omit all helper geometry",
+    "Crop each wrist with 23.8 mm cuff overlap",
+    "Convert to 1.8 m reference human and right-handed wrist-local axes",
+    "Preserve source finger topology and UVs, compute smooth source normals",
+    "Triangulate quads; deduplicate matching position/UV corners; round to micrometre coordinates"
+  ],
+  "usage": "Anatomical hands fit beneath the original costume cuffs; approved character faces and original garments remain unchanged."
+}

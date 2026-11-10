@@ -1,7 +1,2 @@
-# Downloaded glTF files have recorded source-byte checksums. Preserve their bytes
-# even in Windows checkouts with core.autocrlf enabled.
-assets/enhanced/models/**/*.gltf -text
-
-assets/enhanced/props/**/*.gltf -text
-assets/enhanced/vegetation/**/*.gltf -text
-assets/enhanced/characters/human-*.js -text whitespace=cr-at-eol
+# Preserve the attributed MakeHuman derivative's recorded source bytes on Windows.
+assets/first-person/human-anatomy.js -text whitespace=cr-at-eol

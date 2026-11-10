@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { humanAnatomy } from '../assets/enhanced/characters/human-anatomy.js?v=20261109-10';
+import { humanAnatomy } from '../assets/first-person/human-anatomy.js?v=20261109-10';
 import { poseAnatomicalHandPoint } from './human-hand-pose.js?v=20261109-10';
 
 async function loadEnhancedWeapon(index) {
