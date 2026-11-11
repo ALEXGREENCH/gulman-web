@@ -46,7 +46,6 @@ a{color:#e4d091}
 .weapon{position:relative;display:grid;justify-items:center;gap:0}
 #weapon-icon{width:clamp(87px,11.5vw,150px);height:auto}
 #weapon-name,#weapon-slots{font-size:12px;line-height:1.2;color:#d9e891}
-.controls-hint{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);max-width:50vw;color:#dedda3;font-size:11px;text-align:center;opacity:.8}
 #prompt{position:absolute;left:50%;bottom:25%;transform:translateX(-50%);max-width:80vw;display:none;padding:5px 10px;color:#e4f29c;background:#0009;font-size:20px;text-align:center}
 #toast{position:absolute;top:18%;left:50%;transform:translateX(-50%);max-width:80vw;padding:5px 10px;color:#edec8b;background:#0008;font-size:20px;text-align:center;opacity:0;transition:opacity .15s}
 #minimap{position:absolute;right:12px;top:60px;width:200px;height:200px;border:1px solid #aba766;background:#000b}
@@ -89,7 +88,7 @@ body.dragging #game{cursor:grabbing}
  .top-actions{right:8px;gap:4px}#hud .top-actions button{padding:5px 6px;font-size:12px}#briefing-open{display:none}
  #health-icon{width:56px}#health-value{font-size:25px}#hero-name{font-size:11px}
  .inventory{gap:3px}#money-icon{width:33px}#ammo-icon{width:43px}#weapon-icon{width:76px}.counter>span{font-size:19px}
- #weapon-name,#weapon-slots{font-size:10px}.controls-hint{display:none}
+ #weapon-name,#weapon-slots{font-size:10px}
  #minimap{width:145px;height:145px;top:54px;right:8px}#prompt,#toast{font-size:16px;width:max-content;max-width:90vw}#crosshair{width:28px;height:28px}
  .comic-controls{gap:5px;font-size:13px}.comic-controls button{padding:4px 7px}
 }

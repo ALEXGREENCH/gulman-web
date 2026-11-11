@@ -36,8 +36,7 @@ html[data-touch], html[data-touch] body {overscroll-behavior:none}
 }
 #fullscreen .collapse-icon, #fullscreen[aria-pressed=true] .expand-icon {display:none}
 #fullscreen[aria-pressed=true] .collapse-icon {display:block}
-html:not([data-touch]) #fullscreen {top:auto;bottom:var(--safe-bottom);width:36px;height:36px}
-html:not([data-touch]) #hud:not([hidden]) ~ #fullscreen {left:50%;right:auto;bottom:20px;transform:translateX(-50%)}
+html:not([data-touch]) #fullscreen {display:none}
 
 html[data-touch] #touch-controls {
   display:block;
@@ -49,7 +48,7 @@ html[data-touch] #touch-controls {
   -webkit-user-select:none;
   -webkit-touch-callout:none;
 }
-html[data-touch] .top-actions, html[data-touch] .controls-hint,
+html[data-touch] .top-actions,
 html[data-touch] .inventory .weapon, html[data-touch] #hero-name {display:none}
 #touch-look {
   position:absolute;
@@ -107,6 +106,8 @@ html[data-touch] .inventory .weapon, html[data-touch] #hero-name {display:none}
 }
 #touch-stick.sprinting .stick-ring {border-color:#ffe18c;box-shadow:0 0 12px #edc77680}
 #touch-stick.held span {opacity:.65}
+#touch-stick span::after {content:"ХОДЬБА"}
+#touch-stick.sprinting span::after {content:"БЕГ"}
 #touch-stick.sprinting span {color:#ffe18c;opacity:1}
 
 .touch-actions,.touch-tools,.touch-weapons {
@@ -117,7 +118,18 @@ html[data-touch] .inventory .weapon, html[data-touch] #hero-name {display:none}
   align-items:center;
   gap:6px;
 }
-.touch-actions {bottom:calc(var(--safe-bottom) + 58px);align-items:flex-end}
+.touch-actions {
+  bottom:calc(var(--safe-bottom) + 58px);
+  right:max(calc(var(--safe-right) + 12px), 8vw);
+  display:grid;
+  grid-template-columns:calc(var(--action-size) + 12px) var(--action-size);
+  grid-template-rows:var(--action-size) calc(var(--action-size) + 12px);
+  gap:8px 12px;
+  align-items:center;
+}
+#touch-fire {grid-column:1;grid-row:2}
+#touch-jump {grid-column:2;grid-row:2}
+#touch-interact {grid-column:2;grid-row:1}
 .touch-tools {top:var(--safe-top)}
 html[data-touch] #hud:not([hidden]):has(~ #fullscreen:not([hidden])) .touch-tools {right:calc(var(--safe-right) + 50px)}
 .touch-weapons {bottom:var(--safe-bottom)}
@@ -261,8 +273,6 @@ html[data-touch] .original-ui.comic-side>.comic-controls button:not([data-comman
 }
 @media (orientation:portrait) {
   html[data-touch] #touch-controls {--stick-size:clamp(96px,30vw,130px);--action-size:clamp(44px,13vw,56px)}
-  .touch-actions {width:114px;justify-content:flex-end;flex-wrap:wrap}
-  #touch-fire {margin-left:34px}
 }
 .comic-zoom {display:none}
 html[data-touch] .original-ui.has-comic>.comic-controls .comic-zoom {display:block;font-size:22px}

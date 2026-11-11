@@ -1,6 +1,6 @@
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-export function readStick(dx, dy, radius, wasSprinting = false) {
+export function readStick(dx, dy, radius, wasSprinting = false, wasStraight = false) {
   const distance = Math.hypot(dx, dy);
   const pull = Math.min(1, distance / radius);
   const travel = distance ? pull / distance : 0;
@@ -8,14 +8,16 @@ export function readStick(dx, dy, radius, wasSprinting = false) {
   const walk = clamp((pull - .12) / .68, 0, 1);
   const strength = walk * (0.5 + 0.5 * walk);
   const input = distance ? strength / distance : 0;
-  // A small vertical gate absorbs thumb drift so forward can follow a rope.
-  const straight = Math.abs(dx) <= Math.abs(dy) * .12;
+  // Keep a walking thumb on the forward/back axis through small sideways
+  // drift, without switching in and out at the edge of the gate.
+  const straight = strength > 0 && Math.abs(dx) <= Math.abs(dy) * (wasStraight ? .30 : .22);
   return {
     forward: strength ? (straight ? -Math.sign(dy) * strength : -dy * input) : 0,
     strafe: input && !straight ? dx * input : 0,
     x: dx * travel * radius,
     y: dy * travel * radius,
     sprint: pull >= (wasSprinting ? .84 : .94),
+    straight,
   };
 }
 
@@ -50,7 +52,7 @@ function trackPointer(element, {start, move, end}) {
 export function bindTouchControls(root, {look, fire, jump, interact}) {
   const stick = root.querySelector('#touch-stick');
   const fireButton = root.querySelector('#touch-fire');
-  const state = {forward: 0, strafe: 0, sprint: false, active: false};
+  const state = {forward: 0, strafe: 0, sprint: false, straight: false, active: false};
   let originX, originY, radius;
 
   function updateStick(input) {
@@ -71,7 +73,7 @@ export function bindTouchControls(root, {look, fire, jump, interact}) {
       updateStick(readStick(event.clientX - originX, event.clientY - originY, radius));
     },
     move(event) {
-      updateStick(readStick(event.clientX - originX, event.clientY - originY, radius, state.sprint));
+      updateStick(readStick(event.clientX - originX, event.clientY - originY, radius, state.sprint, state.straight));
     },
     end() {
       state.active = false;

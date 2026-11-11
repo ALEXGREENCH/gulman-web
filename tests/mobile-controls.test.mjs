@@ -111,8 +111,50 @@ test('jump can be held and used for camera look independently of the moving stic
 
 test('small thumb drift retains rope heading assistance while deliberate diagonal movement remains available', () => {
   assert.equal(readStick(.4,-30,40).strafe,0);
-  assert.equal(readStick(2,-30,40).strafe,0);
-  assert.equal(readStick(-2,30,40).strafe,0);
+  assert.equal(readStick(5,-30,40).strafe,0);
+  assert.equal(readStick(-5,30,40).strafe,0);
   const diagonal=readStick(12,-30,40);
   assert.ok(diagonal.strafe>.1&&diagonal.forward>0);
+});
+
+test('straight walking resists thumb noise until a deliberate diagonal leaves the wider gate', () => {
+  for (const direction of [-1,1]) {
+    for (const side of [-1,1]) {
+      const enter = readStick(side*22,direction*100,120);
+      assert.equal(enter.straight,true);
+      assert.equal(enter.strafe,0);
+      assert.equal(Math.sign(enter.forward),-direction);
+      const freshDiagonal = readStick(side*22.1,direction*100,120);
+      assert.equal(freshDiagonal.straight,false,'new diagonal must not inherit an axis lock');
+      assert.equal(Math.sign(freshDiagonal.strafe),side);
+      const drift = readStick(side*30,direction*100,120,false,enter.straight);
+      assert.equal(drift.straight,true);
+      assert.equal(drift.strafe,0);
+      const diagonal = readStick(side*30.1,direction*100,120,false,drift.straight);
+      assert.equal(diagonal.straight,false);
+      assert.equal(Math.sign(diagonal.strafe),side);
+      assert.equal(readStick(side*25,direction*100,120,false,diagonal.straight).straight,false);
+    }
+  }
+});
+
+test('neutral and releasing the stick clear straight walking before a new diagonal gesture', () => {
+  const elements = Object.fromEntries(['stick','look','fire','jump','interact'].map(name => ['#touch-'+name,new PointerSurface()]));
+  const controls = bindTouchControls({querySelector: selector => elements[selector]}, {look() {}, fire() {}});
+  const stick = elements['#touch-stick'];
+  stick.send('pointerdown',1,50,12);
+  stick.send('pointermove',1,60,12);
+  assert.equal(controls.state.straight,true,'retain forward through small sideways drift');
+  assert.equal(controls.state.strafe,0);
+  stick.send('pointermove',1,50,48);
+  assert.equal(controls.state.straight,false,'the dead zone clears the axis lock');
+  stick.send('pointermove',1,60,12);
+  assert.ok(controls.state.strafe>0,'a fresh diagonal remains diagonal after neutral');
+  stick.send('pointermove',1,50,12);
+  assert.equal(controls.state.straight,true);
+  stick.send('pointerup',1);
+  assert.equal(controls.state.straight,false);
+  stick.send('pointerdown',2,60,12);
+  assert.ok(controls.state.strafe>0,'a new touch does not inherit the old axis lock');
+  controls.reset();
 });

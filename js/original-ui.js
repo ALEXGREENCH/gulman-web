@@ -61,7 +61,7 @@ export class OriginalUI {
         const focusable = [...this.root.querySelectorAll('button:not(:disabled):not([tabindex="-1"]), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
           .filter(element => !element.hidden && element.getClientRects().length);
         const fullscreen = document.getElementById('fullscreen');
-        if (fullscreen && !fullscreen.hidden) focusable.push(fullscreen);
+        if (fullscreen && !fullscreen.hidden && fullscreen.getClientRects().length) focusable.push(fullscreen);
         if (!focusable.length) { event.preventDefault(); return; }
         const first = focusable[0], last = focusable.at(-1);
         if (!focusable.includes(document.activeElement) || (event.shiftKey && document.activeElement === first)) {
