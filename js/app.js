@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {Assets} from './assets.js?v=20261109-10';
 import {createCharacter} from './characters.js?v=20261109-18';
-import {OriginalMovement} from './original-physics.js?v=20261111-22';
+import {OriginalMovement} from './original-physics.js?v=20261111-23';
 import {WorldCollision} from './collision.js?v=20261109-15';
 import {CrowdRenderer} from './crowd.js?v=20261109-18';
 import {OriginalProjectiles,rollOriginalLoot,rollOriginalPickup,safeProjectileOrigin} from './original-combat.js?v=20261109-12';
@@ -54,7 +54,7 @@ function setTouchLayout(enabled){
 }
 setTouchLayout(touchMedia.matches);
 touchMedia.addEventListener('change',event=>setTouchLayout(event.matches));
-let touchJump=false,touchJumpHeld=false,touchJumpUntil=0,touchInteract=false,touchDriving=false;
+let touchJump=false,touchJumpHeld=false,touchJumpUntil=0,touchGroundUntil=0,touchInteract=false,touchDriving=false;
 const touchWeapons=[...document.querySelectorAll('[data-weapon]')];
 const touch=bindTouchControls($('touch-controls'),{
   look:(dx,dy)=>{if(running)turnView(dx,dy,.004);},
@@ -65,7 +65,7 @@ const touch=bindTouchControls($('touch-controls'),{
   },
   interact:()=>{touchInteract=running;},
 });
-function clearTouch(){touch.reset();touchJump=touchJumpHeld=touchInteract=touchDriving=false;touchJumpUntil=0;}
+function clearTouch(){touch.reset();touchJump=touchJumpHeld=touchInteract=touchDriving=false;touchJumpUntil=touchGroundUntil=0;}
 bindFullscreen($('fullscreen'),{onChange:()=>{clearTouch();ui.refreshLayout();},onError:()=>toast('Браузер не включил полноэкранный режим.')});
 const hero=createPlayerChoice({assets,getPlayer:()=>player,setPlayer:value=>{cancelGrenadeThrow();player=value;weaponReady=true;},getScene:()=>loaded?scene:null,getPosition:()=>position,getYaw:()=>yaw,getWeapon:()=>weapon,onChange:name=>{updateHeroName(name);if(loaded){graphics.applyScene(scene,player);heroVoice();}},onError:message=>toast(message)});
 
@@ -292,14 +292,15 @@ function frame(now){
     const shiftHeld=keys.has('ShiftLeft')||keys.has('ShiftRight')||(!keyboardMoving&&touch.state.sprint);
     const sprint=shiftHeld&&moving&&(classic||(!aimHeld&&!shooting&&!player.grenadeThrow?.active));
     if(!touchJumpHeld&&now>touchJumpUntil)touchJump=false;
-    const touchTakeoff=touchJump&&grounded;
+    if(grounded&&(!classic||originalMovement.normalY>.5))touchGroundUntil=now+90;
+    const touchTakeoff=touchJump&&(grounded||now<touchGroundUntil);
     const jump=keys.has('Space')||touchTakeoff;
     const moveYaw=grounded&&(classic||!jump)?(ropes?.heading(position,yaw,f,s)??yaw):yaw;
     forward.set(Math.sin(moveYaw),0,Math.cos(moveYaw));right.set(-Math.cos(moveYaw),0,Math.sin(moveYaw));tmp.copy(forward).multiplyScalar(f).addScaledVector(right,s);if(tmp.lengthSq()>1)tmp.normalize();
     tmp.multiplyScalar(sprint?8:4.3);velocity.x=tmp.x;velocity.z=tmp.z;
-    if(!classic&&jump&&grounded&&world.height>1.5){velocity.y=jumpSpeedForLevel(level.id);grounded=false;keys.delete('Space');}
-    const result=classic?originalMovement.move(position,velocity,elapsed,{forward:f,strafe:s,yaw:moveYaw,sprint,jump,actors,brake:touchDriving&&!moving&&!jump}):world.move(position,velocity,dt,grounded);grounded=result.onGround;
-    if(touchTakeoff&&!grounded)touchJump=false;
+    if(!classic&&jump&&(grounded||touchTakeoff)&&world.height>1.5){velocity.y=jumpSpeedForLevel(level.id);grounded=false;keys.delete('Space');}
+    const result=classic?originalMovement.move(position,velocity,elapsed,{forward:f,strafe:s,yaw:moveYaw,sprint,jump,actors,brake:touchDriving&&!moving&&!jump,coyoteJump:touchTakeoff&&!grounded}):world.move(position,velocity,dt,grounded);grounded=result.onGround;
+    if(jump&&(classic?originalMovement.ascent>0:!grounded)){touchJump=false;touchGroundUntil=0;}
     if(position.y<mapBounds.min.y-20){position.copy(spawn);resetMovement();damage(15);toast('Возвращение на безопасную точку.');}
     const sideways=keyboardMoving?s!==0:Math.abs(s)>Math.abs(f);
     const direction=f<0&&keyboardMoving?'back':sideways?(s<0?'left':'right'):f<0?'back':'forward';

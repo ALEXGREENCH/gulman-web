@@ -170,3 +170,16 @@ test('touch neutral stops on a platform while airborne jumps keep their original
   touch.tick({brake:true});
   assert.ok(touch.p.z-landing<.001,'brake as soon as feet are grounded');
 });
+
+test('an explicitly granted late touch jump can take off after leaving a ledge',()=>{
+  const group=new T.Group();
+  const platform=new T.Mesh(new T.BoxGeometry(6,1,2));platform.position.y=-.5;group.add(platform);
+  const world=new WorldCollision().setWorld(group);
+  const run=driver(world,[0,.03,0]);
+  for(let i=0;i<120&&run.motion.onGround;i++)run.tick({forward:1,sprint:true});
+  assert.equal(run.motion.onGround,false);
+  const edge=run.p.clone();
+  run.tick({forward:1,sprint:true,jump:true,coyoteJump:true});
+  assert.ok(run.p.y>edge.y&&run.v.y>0,'late touch request starts original ascent');
+  assert.ok(run.v.z>0,'forward momentum survives');
+});
