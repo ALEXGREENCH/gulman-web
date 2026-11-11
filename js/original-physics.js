@@ -145,7 +145,7 @@ export class OriginalMovement {
     // Render between physics ticks, including frames without a new tick.
     return target.copy(this.previousPosition).lerp(position,Math.max(0,this.accumulator/DCE.tick));
   }
-  move(position, velocity, dt, {forward=0,strafe=0,yaw=0,sprint=false,jump=false,actors=[]}={}) {
+  move(position, velocity, dt, {forward=0,strafe=0,yaw=0,sprint=false,jump=false,actors=[],brake=false}={}) {
     if(!(dt>0)||!Number.isFinite(dt))return {onGround:this.onGround,blocked:false};
     this.accumulator+=Math.min(dt,.1);
     this.queuedJump||=jump;
@@ -161,6 +161,10 @@ export class OriginalMovement {
     while(this.accumulator+EPS>=h){
       this.accumulator-=h;
       this.previousPosition.copy(position);this.hasRenderSample=true;
+      // Touch neutral brakes on the floor. A jump keeps its carried momentum.
+      if(brake&&this.onGround&&!forward&&!strafe&&!jump&&!this.queuedJump){
+        this.local.set(0,0,0);this.carry.set(0,0,0);
+      }
       if((jump||this.queuedJump)&&this.onGround&&this.normalY>DCE.jumpNormal&&this.ascent<=0){
         this.carry.add(localToWorld(this.drive,this.local.x,this.local.z));this.local.set(0,0,0);
         this.ascent=DCE.jumpHeight;this.vertical=0;this.onGround=false;

@@ -15,10 +15,10 @@ test('the analog stick has a radial dead zone and caps diagonal speed', () => {
 });
 
 test('running starts near the rim and has hysteresis when easing back', () => {
-  assert.equal(readStick(86, 0, 100).sprint, false);
-  assert.equal(readStick(87, 0, 100).sprint, true);
-  assert.equal(readStick(80, 0, 100, true).sprint, true);
-  const walking = readStick(74, 0, 100, true);
+  assert.equal(readStick(93, 0, 100).sprint, false);
+  assert.equal(readStick(94, 0, 100).sprint, true);
+  assert.equal(readStick(87, 0, 100, true).sprint, true);
+  const walking = readStick(83, 0, 100, true);
   assert.equal(walking.sprint, false);
   assert.ok(walking.strafe > .65);
 });
@@ -29,6 +29,7 @@ class PointerSurface extends EventTarget {
   classList = {add() {}, remove() {}, toggle() {}};
   clientWidth = 100;
 
+  getBoundingClientRect() { return {left:0,top:0,width:100,height:100}; }
   hasPointerCapture(id) { return this.captures.has(id); }
   setPointerCapture(id) { this.captures.add(id); }
   releasePointerCapture(id) { this.captures.delete(id); }
@@ -69,4 +70,49 @@ test('dragging from fire aims while holding the movement stick and preserves ind
   surface.send('pointermove', 2, 200, 200);
   assert.equal(surface.captures.size, 0);
   assert.deepEqual(moves, [[-66,-18],[8,-5]]);
+});
+
+test('rim touch starts running immediately and returning to the visible center stops it', () => {
+  const elements = Object.fromEntries(['stick','look','fire','jump','interact'].map(name => ['#touch-'+name,new PointerSurface()]));
+  const controls = bindTouchControls({querySelector: selector => elements[selector]}, {look() {}, fire() {}});
+  const stick = elements['#touch-stick'];
+  stick.send('pointerdown', 1, 50, 12);
+  assert.equal(controls.state.sprint, true);
+  assert.equal(controls.state.forward, 1);
+  stick.send('pointermove', 1, 50, 37);
+  assert.equal(controls.state.sprint, false);
+  assert.ok(controls.state.forward > .1 && controls.state.forward < .25, 'fine movement near the center');
+  stick.send('pointermove', 1, 50, 50);
+  assert.equal(controls.state.forward, 0);
+  stick.send('pointercancel', 1);
+  stick.send('pointerdown', 2, 50, 75);
+  assert.ok(controls.state.forward < 0, 'new touch is relative to the visible center');
+  controls.reset();
+  assert.equal(controls.state.forward, 0);
+});
+
+test('jump can be held and used for camera look independently of the moving stick', () => {
+  const elements = Object.fromEntries(['stick','look','fire','jump','interact'].map(name => ['#touch-'+name,new PointerSurface()]));
+  const presses = [], moves = [];
+  const controls = bindTouchControls({querySelector: selector => elements[selector]}, {
+    look: (...delta) => moves.push(delta), fire() {}, jump: held => presses.push(held),
+  });
+  elements['#touch-stick'].send('pointerdown', 1, 50, 12);
+  elements['#touch-jump'].send('pointerdown', 2, 250, 180);
+  elements['#touch-jump'].send('pointermove', 2, 270, 170);
+  assert.deepEqual(presses, [true]);
+  assert.deepEqual(moves, [[20,-10]]);
+  assert.equal(controls.state.sprint, true);
+  elements['#touch-jump'].send('pointerup', 2);
+  assert.deepEqual(presses, [true,false]);
+  assert.equal(controls.state.sprint, true);
+  controls.reset();
+});
+
+test('small thumb drift retains rope heading assistance while deliberate diagonal movement remains available', () => {
+  assert.equal(readStick(.4,-30,40).strafe,0);
+  assert.equal(readStick(2,-30,40).strafe,0);
+  assert.equal(readStick(-2,30,40).strafe,0);
+  const diagonal=readStick(12,-30,40);
+  assert.ok(diagonal.strafe>.1&&diagonal.forward>0);
 });

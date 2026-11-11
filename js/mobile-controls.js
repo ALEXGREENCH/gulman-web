@@ -4,14 +4,18 @@ export function readStick(dx, dy, radius, wasSprinting = false) {
   const distance = Math.hypot(dx, dy);
   const pull = Math.min(1, distance / radius);
   const travel = distance ? pull / distance : 0;
-  const strength = clamp((pull - .14) / .86, 0, 1);
+  // A broad walking range gives the thumb room to place feet on small ledges.
+  const walk = clamp((pull - .12) / .68, 0, 1);
+  const strength = walk * (0.5 + 0.5 * walk);
   const input = distance ? strength / distance : 0;
+  // A small vertical gate absorbs thumb drift so forward can follow a rope.
+  const straight = Math.abs(dx) <= Math.abs(dy) * .12;
   return {
-    forward: input ? -dy * input : 0,
-    strafe: input ? dx * input : 0,
+    forward: strength ? (straight ? -Math.sign(dy) * strength : -dy * input) : 0,
+    strafe: input && !straight ? dx * input : 0,
     x: dx * travel * radius,
     y: dy * travel * radius,
-    sprint: pull >= (wasSprinting ? .75 : .87),
+    sprint: pull >= (wasSprinting ? .84 : .94),
   };
 }
 
@@ -46,7 +50,7 @@ function trackPointer(element, {start, move, end}) {
 export function bindTouchControls(root, {look, fire, jump, interact}) {
   const stick = root.querySelector('#touch-stick');
   const fireButton = root.querySelector('#touch-fire');
-  const state = {forward: 0, strafe: 0, sprint: false};
+  const state = {forward: 0, strafe: 0, sprint: false, active: false};
   let originX, originY, radius;
 
   function updateStick(input) {
@@ -58,16 +62,19 @@ export function bindTouchControls(root, {look, fire, jump, interact}) {
 
   const stopStick = trackPointer(stick, {
     start(event) {
-      // Anchor to the initial touch, even when it lands off-center.
-      originX = event.clientX;
-      originY = event.clientY;
-      radius = Math.max(1, stick.clientWidth * .36);
+      state.active = true;
+      const bounds = stick.getBoundingClientRect();
+      originX = bounds.left + bounds.width / 2;
+      originY = bounds.top + bounds.height / 2;
+      radius = Math.max(1, bounds.width * .38);
       stick.classList.add('held');
+      updateStick(readStick(event.clientX - originX, event.clientY - originY, radius));
     },
     move(event) {
       updateStick(readStick(event.clientX - originX, event.clientY - originY, radius, state.sprint));
     },
     end() {
+      state.active = false;
       updateStick(readStick(0, 0, radius));
       stick.classList.remove('held');
     },
@@ -102,7 +109,11 @@ export function bindTouchControls(root, {look, fire, jump, interact}) {
       fire(false);
     },
   });
-  const stopJump = trackPointer(root.querySelector('#touch-jump'), {start: jump});
+  const jumpButton = root.querySelector('#touch-jump');
+  const stopJump = trackLook(jumpButton, {
+    start() { jumpButton.classList.add('held'); jump?.(true); },
+    end() { jumpButton.classList.remove('held'); jump?.(false); },
+  });
   const stopInteract = trackPointer(root.querySelector('#touch-interact'), {start: interact});
 
   return {

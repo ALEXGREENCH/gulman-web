@@ -147,3 +147,26 @@ test('Acropolis log approach reaches the Venus roof with original movement',asyn
     assert.equal(target,venus,`${hz} Hz: Venus must be reachable from the roof at ${p.toArray()}`);
   }
 });
+
+test('touch neutral stops on a platform while airborne jumps keep their original momentum',()=>{
+  const world=flatWorld();
+  const run=driver(world,[0,.03,0]);
+  for(let i=0;i<60;i++)run.tick({forward:1,sprint:true});
+  const stop=run.p.z;
+  run.tick({brake:true});
+  assert.ok(Math.abs(run.p.z-stop)<.001,'neutral touch stops before sliding off a narrow landing');
+  assert.ok(Math.abs(run.v.z)<.001);
+  const normal=driver(world,[0,.03,0]),touch=driver(world,[0,.03,0]);
+  for(let i=0;i<60;i++){normal.tick({forward:1,sprint:true});touch.tick({forward:1,sprint:true});}
+  normal.tick({jump:true});touch.tick({jump:true,brake:true});
+  assert.ok(normal.p.distanceTo(touch.p)<1e-8);
+  let airFrames=0;
+  while(!normal.motion.onGround&&airFrames++<120){
+    const airborneBefore=!normal.motion.onGround;
+    normal.tick();touch.tick({brake:true});
+    if(airborneBefore&&!normal.motion.onGround)assert.ok(normal.p.distanceTo(touch.p)<1e-8,'braking cannot change the flight');
+  }
+  const landing=touch.p.z;
+  touch.tick({brake:true});
+  assert.ok(touch.p.z-landing<.001,'brake as soon as feet are grounded');
+});

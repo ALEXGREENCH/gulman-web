@@ -43,7 +43,7 @@ html[data-touch] #touch-controls {
   display:block;
   position:absolute;
   inset:0;
-  --stick-size:clamp(98px, 31dvh, 134px);
+  --stick-size:clamp(112px, 33dvh, 144px);
   --action-size:clamp(46px, 14dvh, 60px);
   user-select:none;
   -webkit-user-select:none;
@@ -54,7 +54,7 @@ html[data-touch] .inventory .weapon, html[data-touch] #hero-name {display:none}
 #touch-look {
   position:absolute;
   z-index:1;
-  inset:0 0 0 34%;
+  inset:0;
   pointer-events:auto;
   touch-action:none;
 }
@@ -153,6 +153,7 @@ html[data-touch] #hud #touch-fire {
   background:#4d371fe0;
 }
 html[data-touch] #hud #touch-fire.held,
+html[data-touch] #hud .touch-actions button.held,
 html[data-touch] #hud .touch-actions button:active {background:#956b37}
 html[data-touch] #hud #touch-interact {opacity:.64}
 html[data-touch] #hud #touch-interact.available {
@@ -281,3 +282,5 @@ html[data-touch] .comic-stage.comic-enlarged :is(.comic-art,.comic-text) {
   }
   html[data-touch] #touch-stick {bottom:calc(var(--safe-bottom) + 89px)}
 }
+
+#touch-controls button > * {pointer-events:none}

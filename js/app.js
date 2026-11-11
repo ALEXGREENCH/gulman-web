@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {Assets} from './assets.js?v=20261109-10';
 import {createCharacter} from './characters.js?v=20261109-18';
-import {OriginalMovement} from './original-physics.js?v=20261109-18';
+import {OriginalMovement} from './original-physics.js?v=20261111-22';
 import {WorldCollision} from './collision.js?v=20261109-15';
 import {CrowdRenderer} from './crowd.js?v=20261109-18';
 import {OriginalProjectiles,rollOriginalLoot,rollOriginalPickup,safeProjectileOrigin} from './original-combat.js?v=20261109-12';
@@ -10,7 +10,7 @@ import {AudioManager} from './audio.js?v=20261109-10';
 import {createPlayerChoice,heroForKey} from './player-choice.js?v=20261109-12';
 import {GraphicsManager} from './graphics.js?v=20261109-19';
 import {ProceduralViewmodel} from './viewmodel.js?v=20261111-20';
-import {bindTouchControls,bindFullscreen} from './mobile-controls.js?v=20261111-21';
+import {bindTouchControls,bindFullscreen} from './mobile-controls.js?v=20261111-22';
 import {MouseCapture} from './mouse-capture.js?v=20261109-17';
 import {ropeSupport} from './rope-support.js?v=20261109-15';
 import {OriginalWater} from './original-water.js?v=20261109-11';
@@ -31,7 +31,7 @@ const position=new THREE.Vector3(),velocity=new THREE.Vector3(),spawn=new THREE.
 const renderFeet=new THREE.Vector3();
 const forward=new THREE.Vector3(),right=new THREE.Vector3(),tmp=new THREE.Vector3();
 let lastFrame=performance.now(),frameCount=0,fpsTime=0,frameCPUTime=0;
-let drag=null,comicIndex=0,mapBounds,firePointer=null,aimHeld=false,lookX=0,lookY=0;
+let drag=null,comicIndex=0,mapBounds,firePointer=null,touchFirePointer=null,aimHeld=false,lookX=0,lookY=0;
 let cameraPreference=null;try{cameraPreference=localStorage.getItem('gulman-camera');}catch{}
 let saved=null;try{saved=JSON.parse(localStorage.getItem('gulman-web-save-v1'));}catch{}
 
@@ -54,15 +54,18 @@ function setTouchLayout(enabled){
 }
 setTouchLayout(touchMedia.matches);
 touchMedia.addEventListener('change',event=>setTouchLayout(event.matches));
-let touchJump=false,touchInteract=false;
+let touchJump=false,touchJumpHeld=false,touchJumpUntil=0,touchInteract=false,touchDriving=false;
 const touchWeapons=[...document.querySelectorAll('[data-weapon]')];
 const touch=bindTouchControls($('touch-controls'),{
   look:(dx,dy)=>{if(running)turnView(dx,dy,.004);},
-  fire:(held,id)=>{if(held&&running){shooting=true;firePointer=id;shoot();}else{shooting=false;firePointer=null;}},
-  jump:()=>{touchJump=running;},
+  fire:(held,id)=>{if(held&&running){shooting=true;firePointer=touchFirePointer=id;shoot();}else{shooting=false;firePointer=touchFirePointer=null;}},
+  jump:held=>{
+    touchJumpHeld=held;
+    if(held&&running){touchJump=true;touchJumpUntil=performance.now()+180;}
+  },
   interact:()=>{touchInteract=running;},
 });
-function clearTouch(){touch.reset();touchJump=touchInteract=false;}
+function clearTouch(){touch.reset();touchJump=touchJumpHeld=touchInteract=touchDriving=false;touchJumpUntil=0;}
 bindFullscreen($('fullscreen'),{onChange:()=>{clearTouch();ui.refreshLayout();},onError:()=>toast('Браузер не включил полноэкранный режим.')});
 const hero=createPlayerChoice({assets,getPlayer:()=>player,setPlayer:value=>{cancelGrenadeThrow();player=value;weaponReady=true;},getScene:()=>loaded?scene:null,getPosition:()=>position,getYaw:()=>yaw,getWeapon:()=>weapon,onChange:name=>{updateHeroName(name);if(loaded){graphics.applyScene(scene,player);heroVoice();}},onError:message=>toast(message)});
 
@@ -282,18 +285,21 @@ function frame(now){
     const keyForward=Number(keys.has('KeyW'))-Number(keys.has('KeyS'));
     const keyStrafe=Number(keys.has('KeyD'))-Number(keys.has('KeyA'));
     const keyboardMoving=!!(keyForward||keyStrafe);
+    if(keyboardMoving)touchDriving=false;else if(touch.state.active)touchDriving=true;
     const f=keyboardMoving?keyForward:touch.state.forward;
     const s=keyboardMoving?keyStrafe:touch.state.strafe;
     const moving=!!(f||s);
     const shiftHeld=keys.has('ShiftLeft')||keys.has('ShiftRight')||(!keyboardMoving&&touch.state.sprint);
     const sprint=shiftHeld&&moving&&(classic||(!aimHeld&&!shooting&&!player.grenadeThrow?.active));
-    const jump=keys.has('Space')||touchJump;
-    touchJump=false;
+    if(!touchJumpHeld&&now>touchJumpUntil)touchJump=false;
+    const touchTakeoff=touchJump&&grounded;
+    const jump=keys.has('Space')||touchTakeoff;
     const moveYaw=grounded&&(classic||!jump)?(ropes?.heading(position,yaw,f,s)??yaw):yaw;
     forward.set(Math.sin(moveYaw),0,Math.cos(moveYaw));right.set(-Math.cos(moveYaw),0,Math.sin(moveYaw));tmp.copy(forward).multiplyScalar(f).addScaledVector(right,s);if(tmp.lengthSq()>1)tmp.normalize();
     tmp.multiplyScalar(sprint?8:4.3);velocity.x=tmp.x;velocity.z=tmp.z;
     if(!classic&&jump&&grounded&&world.height>1.5){velocity.y=jumpSpeedForLevel(level.id);grounded=false;keys.delete('Space');}
-    const result=classic?originalMovement.move(position,velocity,elapsed,{forward:f,strafe:s,yaw:moveYaw,sprint,jump,actors}):world.move(position,velocity,dt,grounded);grounded=result.onGround;
+    const result=classic?originalMovement.move(position,velocity,elapsed,{forward:f,strafe:s,yaw:moveYaw,sprint,jump,actors,brake:touchDriving&&!moving&&!jump}):world.move(position,velocity,dt,grounded);grounded=result.onGround;
+    if(touchTakeoff&&!grounded)touchJump=false;
     if(position.y<mapBounds.min.y-20){position.copy(spawn);resetMovement();damage(15);toast('Возвращение на безопасную точку.');}
     const sideways=keyboardMoving?s!==0:Math.abs(s)>Math.abs(f);
     const direction=f<0&&keyboardMoving?'back':sideways?(s<0?'left':'right'):f<0?'back':'forward';
@@ -339,7 +345,13 @@ $('game').addEventListener('pointerdown',e=>{
 $('game').addEventListener('click',e=>{
   if(e.pointerType!=='touch'&&e.button===0&&mouse.state==='available')requestMouse();
 });
-document.addEventListener('mouseup',e=>{if(e.button===0){shooting=false;firePointer=null;}if(e.button===2)aimHeld=false;});
+document.addEventListener('mouseup',e=>{
+  // Touch release belongs to its captured pointer, including when another
+  // finger or a browser compatibility mouse event ends first.
+  if(touchFirePointer!==null||e.sourceCapabilities?.firesTouchEvents)return;
+  if(e.button===0){shooting=false;firePointer=null;}
+  if(e.button===2)aimHeld=false;
+});
 function releasePointer(e){if(e.button===2)aimHeld=false;if(e.pointerId===firePointer&&e.button!==2){shooting=false;firePointer=null;}if(e.pointerId===drag?.id&&(!e.buttons||e.type!=='pointerup'))drag=null;}
 document.addEventListener('pointerup',releasePointer);document.addEventListener('pointercancel',releasePointer);$('game').addEventListener('lostpointercapture',releasePointer);
 $('game').addEventListener('contextmenu',e=>e.preventDefault());
