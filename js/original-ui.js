@@ -9,6 +9,23 @@ export function fitOriginalArtwork(viewportSize,referenceSize=[1024,768],imageSi
 
 export function cursorPlacement(x,y,hotspot,scale){return{x:x-hotspot[0]*scale,y:y-hotspot[1]*scale};}
 
+/** A finger released after opening a menu must not activate the button now
+ * underneath it. Only a new touch starting on that menu control may click it. */
+export function guardTouchActivation(root){
+  let press=null;
+  const control=event=>event.target.closest?.('button, a, input, select, textarea, label, [data-command]');
+  const down=event=>{if(event.pointerType==='touch'||event.pointerType==='pen')press={target:control(event),id:event.pointerId};};
+  const click=event=>{
+    if(event.pointerType!=='touch'&&event.pointerType!=='pen'&&!event.sourceCapabilities?.firesTouchEvents)return;
+    const target=control(event),allowed=target&&press?.target===target&&root.contains(target)&&(!event.pointerId||press.id===event.pointerId);
+    press=null;
+    if(!allowed){event.preventDefault();event.stopImmediatePropagation();}
+  };
+  root.addEventListener('pointerdown',down,true);
+  root.addEventListener('click',click,true);
+  return ()=>{root.removeEventListener('pointerdown',down,true);root.removeEventListener('click',click,true);};
+}
+
 export function fitShopLayout(viewportSize,referenceSize=[1024,768],imageSize=referenceSize){
   const [width,height]=viewportSize,stacked=width<700&&height>=480,panelHeight=270,gap=10;
   const fit=fitOriginalArtwork([width,stacked?Math.max(1,height-panelHeight-gap-24):height],referenceSize,imageSize);
@@ -20,6 +37,7 @@ export class OriginalUI {
   constructor({ root, assets, onCommand = () => {} }) {
     if (!root || !assets) throw new TypeError('OriginalUI requires root and assets');
     this.root = root;
+    this._releaseTouchGuard = guardTouchActivation(root);
     this.assets = assets;
     this.onCommand = onCommand;
     this.data = null;
@@ -105,6 +123,13 @@ export class OriginalUI {
   _fit() {
     let availableWidth = this.root.clientWidth || window.innerWidth;
     let availableHeight = this.root.clientHeight || window.innerHeight;
+    const toolbar = this.extrasElement?.classList.contains('original-toolbar') && this.extrasElement.childElementCount ? this.extrasElement : null;
+    const mobileToolbar = toolbar && document.documentElement.hasAttribute('data-touch');
+    this.root.classList.toggle('has-touch-toolbar', !!mobileToolbar);
+    if (toolbar) (mobileToolbar ? this.root : this.stage).append(toolbar);
+    const toolbarSpace = mobileToolbar ? toolbar.offsetHeight + (parseFloat(getComputedStyle(toolbar).bottom) || 0) + 6 : 0;
+    availableHeight -= toolbarSpace;
+    this.root.style.setProperty('--toolbar-space', `${toolbarSpace}px`);
     const mobileComic = this._comicMode && document.documentElement.hasAttribute('data-touch');
     const sideRail = mobileComic && availableWidth >= 640 && availableWidth / availableHeight >= 1.65;
     this.root.classList.toggle('comic-side', sideRail);
@@ -134,6 +159,7 @@ export class OriginalUI {
     if (!this.visible) this._focusBefore = document.activeElement;
     this._currentMenu = menuId;
     this.shopControls=null;
+    this.extrasElement=null;
     this._visible = true;
     this._referenceSize = referenceSize ?? [1024, 768];
     this._imageSize = imageSize ?? this._referenceSize;
@@ -308,6 +334,7 @@ export class OriginalUI {
       output.textContent = status;
       this.stage.append(output);
     }
+    this._fit();
     this._focusFirst();
     return this;
   }
@@ -356,6 +383,7 @@ export class OriginalUI {
 
   dispose() {
     this.hide();
+    this._releaseTouchGuard();
     this.root.removeEventListener('click', this._click);
     this.root.removeEventListener('pointermove',this._pointerMove);
     this.root.removeEventListener('pointerleave',this._pointerLeave);

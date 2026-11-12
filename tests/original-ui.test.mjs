@@ -1,6 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import {guardTouchActivation} from '../js/original-ui.js';
+
+test('a release over a new menu cannot click through, but a fresh touch and keyboard activation work',()=>{
+  const listeners=new Map(),button={closest(){return this;}},oldButton={closest(){return this;}};
+  const root={addEventListener:(type,handler)=>listeners.set(type,handler),removeEventListener:type=>listeners.delete(type),contains:node=>node===button};
+  const dispose=guardTouchActivation(root);
+  const event=(target,pointerType='touch')=>({target,pointerType,pointerId:2,preventDefault(){this.blocked=true;},stopImmediatePropagation(){this.stopped=true;}});
+  let click=event(button);listeners.get('click')(click);
+  assert.ok(click.blocked&&click.stopped,'a gameplay finger cannot activate the new menu');
+  listeners.get('pointerdown')(event(oldButton));click=event(button);listeners.get('click')(click);
+  assert.ok(click.blocked,'replacing a menu during a press cannot activate its replacement');
+  listeners.get('pointerdown')(event(button));click=event(button);listeners.get('click')(click);
+  assert.equal(click.blocked,undefined,'a new intentional touch works immediately');
+  for(const pointerType of ['', 'mouse']){click=event(button,pointerType);listeners.get('click')(click);assert.equal(click.blocked,undefined);}
+  dispose();assert.equal(listeners.size,0);
+});
 
 const root = new URL('../', import.meta.url);
 const readJSON = async path => JSON.parse(await fs.readFile(new URL(path, root), 'utf8'));

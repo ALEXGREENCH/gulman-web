@@ -199,6 +199,44 @@ test('level 4 original lower scaffold reaches its two-metre eave with its level-
   } finally { dispose(); }
 });
 
+test('original DCE climbs the level 4 plank eave without colliding with back-facing roof edges', async () => {
+  const {world,dispose}=await levelWorld(4);
+  try {
+    const position=new THREE.Vector3(54.01115,-28.45,-36.8),velocity=new THREE.Vector3();
+    const motion=new OriginalMovement(world),dt=1/60,yaw=Math.atan2(.453,1);
+    for(let i=0;i<90;i++)motion.move(position,velocity,dt,{});
+    const forward=1/5.4455;
+    for(let i=0;i<8;i++)motion.move(position,velocity,dt,{forward,yaw});
+    for(let i=0;i<150;i++)motion.move(position,velocity,dt,{forward,yaw,jump:i===0});
+    assert.ok(position.y>-26.4,`roof landing at ${position.toArray()}`);
+    assert.ok(position.z>-36&&motion.onGround,'land on the authored roof, not the plank below');
+    for(let i=0;i<120;i++)motion.move(position,velocity,dt,{brake:true});
+    assert.ok(position.y>-26.4&&motion.onGround,'the roof still supports the body when standing');
+  } finally {dispose();}
+});
+
+test('original DCE keeps downhill run-up after a stop on the level 4 tower and lands on the church roof', async () => {
+  const {world,dispose}=await levelWorld(4);
+  try {
+    for(const hz of [25,60,120]){
+      const p=new THREE.Vector3(15.5,-12,-48.47),v=new THREE.Vector3();
+      const motion=new OriginalMovement(world),dt=1/hz;
+      for(let i=0;i<hz*3;i++)motion.move(p,v,dt,{brake:true});
+      assert.ok(motion.onGround,`${hz} Hz: stopped on tower`);
+      const yaw=Math.atan2(-p.x,-42-p.z);
+      for(let i=0;i<Math.round(.23*hz);i++)motion.move(p,v,dt,{forward:1,sprint:true,yaw});
+      assert.ok(motion.onGround&&Math.hypot(v.x,v.z)>5.5,`${hz} Hz: downhill run-up stays grounded`);
+      let airborne=false,landed=false;
+      for(let i=0;i<hz*3;i++){
+        motion.move(p,v,dt,{forward:1,sprint:true,yaw,jump:i===0});
+        airborne||=!motion.onGround;
+        if(airborne&&motion.onGround&&p.y<-18&&p.x<5){landed=true;break;}
+      }
+      assert.ok(landed&&p.y>-24.5&&p.x<3,`${hz} Hz: church roof, not the street below: ${p.toArray()}`);
+    }
+  } finally {dispose();}
+});
+
 test('level 3 original rock-to-rock gap rejects jump8 and is reachable with its restored per-level jump', async () => {
   const { world, dispose } = await levelWorld(3);
   try {
@@ -233,6 +271,31 @@ for (const dt of [.04, 1 / 120]) {
     } finally { level3.dispose(); level4.dispose(); }
   });
 }
+
+test('original DCE walks the Taj Mahal stair riser without losing ground drive or gaining a wall jump', async () => {
+  const {world,dispose}=await levelWorld(5);
+  try {
+    for(const hz of [25,60,120]) {
+      const motion=new OriginalMovement(world),position=new THREE.Vector3(-52.317894,-33.4358,-24.53557),velocity=new THREE.Vector3();
+      for(let n=0;n<hz;n++)motion.move(position,velocity,1/hz,{brake:true});
+      const target=new THREE.Vector3(-52.96,-33.1,-24.51);
+      let edgeContact=false,reached=false;
+      for(let n=0;n<hz*3;n++) {
+        motion.move(position,velocity,1/hz,{forward:1,yaw:Math.atan2(target.x-position.x,target.z-position.z)});
+        edgeContact ||= motion.onGround&&motion.normalY<.5;
+        if(Math.hypot(target.x-position.x,target.z-position.z)<.2&&position.y> -33.3){reached=true;break;}
+      }
+      assert.ok(edgeContact,`${hz} Hz must exercise the vertical riser contact`);
+      assert.ok(reached,`${hz} Hz stalled at ${position.toArray()}`);
+    }
+    const motion=new OriginalMovement(world),position=new THREE.Vector3(-52.317894,-33.4358,-24.53557),velocity=new THREE.Vector3();
+    for(let n=0;n<120;n++)motion.move(position,velocity,1/60,{brake:true});
+    motion.move(position,velocity,1/60,{forward:1,yaw:-Math.PI/2});
+    assert.ok(motion.onGround&&motion.normalY<.5);
+    motion.move(position,velocity,1/120,{jump:true});
+    assert.equal(motion.ascent,0,'riser contact permits walking, not a jump off a vertical wall');
+  } finally { dispose(); }
+});
 
 test('level 6 original 56-degree roof approach and rear crate staircase connect to the upper plank at 25, 60 and 120 Hz', async t => {
   const fixture = JSON.parse(await readFile(new URL('tests/fixtures/level6-middle.json', root), 'utf8'));

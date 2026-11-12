@@ -294,3 +294,59 @@ html[data-touch] .comic-stage.comic-enlarged :is(.comic-art,.comic-text) {
 }
 
 #touch-controls button > * {pointer-events:none}
+
+/* Pause/level-selection actions stay thumb-sized beside the scaled artwork. */
+html[data-touch] .original-ui.has-touch-toolbar>.original-ui-stage {
+  top:calc(50% - var(--toolbar-space, 60px) / 2);
+}
+html[data-touch] .original-ui>.original-toolbar {
+  top:auto!important;
+  bottom:var(--safe-bottom);
+  left:var(--safe-left)!important;
+  width:calc(100% - var(--safe-left) - var(--safe-right))!important;
+  height:auto!important;
+  display:flex;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:0;
+}
+html[data-touch] .original-ui>.original-toolbar button {
+  min-height:44px;
+  padding:8px 12px;
+  border-radius:10px;
+  font:600 14px/1.25 system-ui,sans-serif;
+}
+
+/* Dialog text and actions use screen pixels, not the scaled 1024px artwork. */
+html[data-touch] .original-ui .original-ui-framed:not(.comic-stage) {
+  width:min(680px,calc(100% - var(--safe-left) - var(--safe-right)))!important;
+  height:min(460px,calc(100% - var(--safe-top) - var(--safe-bottom)))!important;
+  transform:translate(-50%,-50%);
+}
+html[data-touch] .original-ui-framed:not(.comic-stage)>.original-ui-background {object-fit:fill}
+html[data-touch] .original-ui-framed:not(.comic-stage)>.original-ui-frame-content {
+  inset:36px 7% 72px!important;
+  width:auto!important;
+  height:auto!important;
+  padding:10px 6px;
+  font:17px/1.45 Georgia,'Times New Roman',serif;
+  touch-action:pan-y;
+  overscroll-behavior:contain;
+}
+html[data-touch] .original-ui-frame-content h2 {font-size:26px;margin-bottom:12px}
+html[data-touch] .original-ui-frame-content .dialog-actions {gap:10px;margin-top:16px}
+html[data-touch] .original-ui-frame-content button {
+  min-height:44px;
+  padding:8px 16px;
+  font-size:16px;
+}
+html[data-touch] .original-ui-framed:not(.comic-stage)>.original-ui-button {
+  top:auto!important;
+  bottom:16px;
+  left:50%!important;
+  width:180px!important;
+  height:44px!important;
+  transform:translateX(-50%);
+  font-size:16px;
+}

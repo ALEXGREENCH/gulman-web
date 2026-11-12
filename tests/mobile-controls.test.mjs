@@ -109,6 +109,23 @@ test('jump can be held and used for camera look independently of the moving stic
   controls.reset();
 });
 
+test('holding interact survives other fingers and releases on cancellation or menu reset', () => {
+  const elements=Object.fromEntries(['stick','look','fire','jump','interact'].map(name=>['#touch-'+name,new PointerSurface()]));
+  const presses=[];
+  const controls=bindTouchControls({querySelector:selector=>elements[selector]}, {
+    look() {}, fire() {}, interact:held=>presses.push(held),
+  });
+  elements['#touch-interact'].send('pointerdown',2,250,120);
+  elements['#touch-stick'].send('pointerdown',1,50,12);
+  elements['#touch-stick'].send('pointerup',1);
+  assert.deepEqual(presses,[true],'releasing the stick must not release pickup');
+  elements['#touch-interact'].send('pointercancel',2);
+  assert.deepEqual(presses,[true,false]);
+  elements['#touch-interact'].send('pointerdown',3,250,120);
+  controls.reset();
+  assert.deepEqual(presses,[true,false,true,false],'menus cannot leave interaction held');
+});
+
 test('small thumb drift retains rope heading assistance while deliberate diagonal movement remains available', () => {
   assert.equal(readStick(.4,-30,40).strafe,0);
   assert.equal(readStick(5,-30,40).strafe,0);

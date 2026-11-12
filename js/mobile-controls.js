@@ -116,7 +116,11 @@ export function bindTouchControls(root, {look, fire, jump, interact}) {
     start() { jumpButton.classList.add('held'); jump?.(true); },
     end() { jumpButton.classList.remove('held'); jump?.(false); },
   });
-  const stopInteract = trackPointer(root.querySelector('#touch-interact'), {start: interact});
+  const actionButton = root.querySelector('#touch-interact');
+  const stopInteract = trackPointer(actionButton, {
+    start() { actionButton.classList.add('held'); interact?.(true); },
+    end() { actionButton.classList.remove('held'); interact?.(false); },
+  });
 
   return {
     state,

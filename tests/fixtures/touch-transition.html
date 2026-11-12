@@ -1,0 +1,17 @@
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Touch menu transition regression</title>
+<style>body{margin:0;background:#111;color:white}button{position:absolute;left:620px;top:180px;width:120px;height:80px;touch-action:none}#touch-stick,#touch-look,#touch-fire,#touch-jump{position:absolute;left:0;top:0;width:80px;height:80px;touch-action:none}#menu{position:fixed;inset:0;background:#243}#menu[hidden],#hud[hidden]{display:none}</style>
+<div id="hud"><div id="touch-stick"></div><div id="touch-look"></div><button id="touch-fire">Fire</button><button id="touch-jump">Jump</button><button id="touch-interact">Exit</button></div>
+<div id="menu" hidden><h1>Mission complete</h1><button id="next">Next</button></div>
+<script type="module">
+import {bindTouchControls} from '../../js/mobile-controls.js?transition-check';
+import {guardTouchActivation} from '../../js/original-ui.js?transition-check';
+window.result={opened:false,clicks:0,held:[]};
+const hud=document.getElementById('hud'),menu=document.getElementById('menu');
+guardTouchActivation(menu);
+const controls=bindTouchControls(hud,{look(){},fire(){},jump(){},interact(held){
+ result.held.push(held);
+ if(held)requestAnimationFrame(()=>{controls.reset();hud.hidden=true;menu.hidden=false;result.opened=true;});
+}});
+document.getElementById('next').onclick=()=>result.clicks++;
+window.ready=true;
+</script>

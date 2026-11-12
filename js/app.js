@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 import {Assets} from './assets.js?v=20261109-10';
 import {createCharacter} from './characters.js?v=20261109-18';
-import {OriginalMovement} from './original-physics.js?v=20261111-23';
+import {OriginalMovement} from './original-physics.js?v=20261112-26';
 import {WorldCollision} from './collision.js?v=20261109-15';
 import {CrowdRenderer} from './crowd.js?v=20261109-18';
 import {OriginalProjectiles,rollOriginalLoot,rollOriginalPickup,safeProjectileOrigin} from './original-combat.js?v=20261109-12';
-import {OriginalUI} from './original-ui.js?v=20261111-25';
+import {OriginalUI} from './original-ui.js?v=20261112-26';
 import {AudioManager} from './audio.js?v=20261109-10';
 import {createPlayerChoice,heroForKey} from './player-choice.js?v=20261109-12';
 import {GraphicsManager} from './graphics.js?v=20261109-19';
 import {ProceduralViewmodel} from './viewmodel.js?v=20261111-20';
-import {bindTouchControls,bindFullscreen} from './mobile-controls.js?v=20261111-25';
+import {bindTouchControls,bindFullscreen} from './mobile-controls.js?v=20261112-26';
 import {MouseCapture} from './mouse-capture.js?v=20261109-17';
 import {ropeSupport} from './rope-support.js?v=20261109-15';
 import {OriginalWater} from './original-water.js?v=20261109-11';
@@ -54,18 +54,18 @@ function setTouchLayout(enabled){
 }
 setTouchLayout(touchMedia.matches);
 touchMedia.addEventListener('change',event=>setTouchLayout(event.matches));
-let touchJump=false,touchJumpHeld=false,touchJumpUntil=0,touchGroundUntil=0,touchInteract=false,touchDriving=false;
+let touchJump=false,touchJumpHeld=false,touchJumpUntil=0,touchGroundUntil=0,touchInteract=false,touchInteractHeld=false,touchDriving=false;
 const touchWeapons=[...document.querySelectorAll('[data-weapon]')];
 const touch=bindTouchControls($('touch-controls'),{
-  look:(dx,dy)=>{if(running)turnView(dx,dy,.004);},
+  look:(dx,dy)=>{if(running)turnView(dx,dy,.004,true);},
   fire:(held,id)=>{if(held&&running){shooting=true;firePointer=touchFirePointer=id;shoot();}else{shooting=false;firePointer=touchFirePointer=null;}},
   jump:held=>{
     touchJumpHeld=held;
     if(held&&running){touchJump=true;touchJumpUntil=performance.now()+180;}
   },
-  interact:()=>{touchInteract=running;},
+  interact:held=>{touchInteractHeld=running&&held;if(held)touchInteract=running;},
 });
-function clearTouch(){touch.reset();touchJump=touchJumpHeld=touchInteract=touchDriving=false;touchJumpUntil=touchGroundUntil=0;}
+function clearTouch(){touch.reset();touchJump=touchJumpHeld=touchInteract=touchInteractHeld=touchDriving=false;touchJumpUntil=touchGroundUntil=0;}
 bindFullscreen($('fullscreen'),{onChange:()=>{clearTouch();ui.refreshLayout();},onError:()=>toast('Браузер не включил полноэкранный режим.')});
 const hero=createPlayerChoice({assets,getPlayer:()=>player,setPlayer:value=>{cancelGrenadeThrow();player=value;weaponReady=true;},getScene:()=>loaded?scene:null,getPosition:()=>position,getYaw:()=>yaw,getWeapon:()=>weapon,onChange:name=>{updateHeroName(name);if(loaded){graphics.applyScene(scene,player);heroVoice();}},onError:message=>toast(message)});
 
@@ -255,7 +255,7 @@ function interact(item){const e=item.entry,n=e.pickupAmount??rollOriginalPickup(
   item.collected=true;item.object.visible=false;$('game').dataset.lootDrops=String(items.filter(i=>i.entry.dropped&&!i.collected).length);updateHUD();saveProgress();
 }
 function updateItems(dt,time){const near=selectInteraction(items,position,world,{health:hp,collected,totalKeys});for(const item of items){if(item.collected)continue;const important=['GameKey','GameEnd','МАГАЗИН'].includes(item.entry.command);item.object.rotation.y=time*(important?.45:.25);item.object.position.y=item.baseY+Math.sin(time*2+item.entry.id)*.08;}
-  $('prompt').style.display=near?'block':'none';$('touch-interact').classList.toggle('available',!!near);if(near){const names={'АПТЕЧКА':'Аптечка','ПАТРОНЫ':'Патроны','БАКСЫ':'Деньги','GameKey':'Предмет задания','GameEnd':'Выход','МАГАЗИН':'Магазин'};$('prompt').textContent=(document.documentElement.hasAttribute('data-touch')?'':'E — ')+(names[near.entry.command]||'Подобрать');if(keys.has('KeyE')||touchInteract){keys.delete('KeyE');interact(near);}}
+  $('prompt').style.display=near?'block':'none';$('touch-interact').classList.toggle('available',!!near);if(near){const names={'АПТЕЧКА':'Аптечка','ПАТРОНЫ':'Патроны','БАКСЫ':'Деньги','GameKey':'Предмет задания','GameEnd':'Выход','МАГАЗИН':'Магазин'};$('prompt').textContent=(document.documentElement.hasAttribute('data-touch')?'':'E — ')+(names[near.entry.command]||'Подобрать');if(keys.has('KeyE')||touchInteract||touchInteractHeld){keys.delete('KeyE');interact(near);}}
   const targets=items.filter(i=>!i.collected&&i.entry.command===(collected>=totalKeys?'GameEnd':'GameKey'));const min=targets.length?Math.min(...targets.map(t=>position.distanceTo(t.pos))):0;$('objective-distance').textContent=min?`${Math.round(min)} м до ${collected>=totalKeys?'выхода':'цели'}${document.documentElement.hasAttribute('data-touch')?'':' · M — карта'}`:'';
 }
 function updateEnemies(dt){const playerEye=position.clone().add(new THREE.Vector3(0,1.1,0));for(const actor of actors){const dist=actor.pos.distanceTo(position);actor.char.group.visible=dist<100;if(actor.dead){actor.char.update(dt,false,true);continue;}if(dist>75)continue;actor.timer-=dt;const to=playerEye.clone().sub(actor.pos.clone().add(new THREE.Vector3(0,1.2,0)));const canSee=dist<38&&!world.ray(actor.pos.clone().add(new THREE.Vector3(0,1.2,0)),to,to.length()-.6);let moving=false;
@@ -356,10 +356,10 @@ document.addEventListener('mouseup',e=>{
 function releasePointer(e){if(e.button===2)aimHeld=false;if(e.pointerId===firePointer&&e.button!==2){shooting=false;firePointer=null;}if(e.pointerId===drag?.id&&(!e.buttons||e.type!=='pointerup'))drag=null;}
 document.addEventListener('pointerup',releasePointer);document.addEventListener('pointercancel',releasePointer);$('game').addEventListener('lostpointercapture',releasePointer);
 $('game').addEventListener('contextmenu',e=>e.preventDefault());
-function turnView(dx,dy,scale){
+function turnView(dx,dy,scale,touchLook=false){
   lookX+=dx;lookY+=dy;
   yaw-=dx*scale*sensitivity;
-  pitch=Math.max(-1.1,Math.min(.9,pitch-dy*scale*sensitivity*(invertMouse?-1:1)));
+  pitch=Math.max(touchLook?-1.45:-1.1,Math.min(touchLook?1.35:.9,pitch-dy*scale*sensitivity*(invertMouse?-1:1)));
 }
 document.addEventListener('pointermove',e=>{
   if(!running||e.pointerType==='touch')return;

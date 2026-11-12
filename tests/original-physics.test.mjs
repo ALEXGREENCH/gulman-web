@@ -84,6 +84,18 @@ test('swept DCE collider slides along a thin wall and also stops against live ac
   assert.ok(body.p.z>2.5);
 });
 
+test('a ceiling blocks displacement without cancelling the source jump impulse',()=>{
+  const group=new T.Group();
+  const floor=new T.Mesh(new T.BoxGeometry(20,.2,20));floor.position.y=-.1;group.add(floor);
+  const ceiling=new T.Mesh(new T.BoxGeometry(20,.2,20));ceiling.position.y=2.22;group.add(ceiling);
+  const {motion,p,tick}=driver(new WorldCollision().setWorld(group),[0,.03,0]);
+  tick({jump:true});tick();tick();
+  assert.ok(motion.ascent>0,'contact consumes time, not the remaining jump impulse');
+  assert.ok(p.y<.13,'the body remains below the ceiling');
+  for(let i=0;i<120;i++){tick();assert.ok(p.y<.13,'no penetration while the impulse continues');}
+  assert.ok(motion.onGround,'lands back on the floor');
+});
+
 test('oblique wall contact preserves the tangential component of sprint speed',()=>{
   const {p,tick}=driver(flatWorld(true),[-1.59,.03,-4]);
   const input={forward:1,strafe:1,sprint:true};

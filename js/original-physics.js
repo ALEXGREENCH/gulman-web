@@ -64,15 +64,20 @@ class EllipsoidSweep {
     for(const source of this.candidates){
       const {tri,normal,bounds,edges,points}=this.scaled(source);
       if(!this.box.intersectsBox(bounds))continue;
-      // A few exported surfaces have reversed winding. Use their near side.
+      // GLScene CheckTriangle ignores faces pointing with the motion. Without
+      // this gate the back edges of a roof trap the body below its eave.
+      if(normal.dot(v)>0)continue;
       const face=this.face.copy(normal);
-      let d=face.dot(this.relative.copy(o).sub(tri.a));
-      if(d<0){face.negate();d=-d;}
-      const vn=face.dot(v);
-      if(vn<-EPS){
-        const t=Math.max(0,(1-d)/vn);
-        if(t<=best&&tri.containsPoint(this.point.copy(o).addScaledVector(v,t).addScaledVector(face,-Math.min(1,d)))){
-          consider(t,face,face);
+      const d=face.dot(this.relative.copy(o).sub(tri.a)),vn=face.dot(v);
+      // Signed plane interval, as in GLScene. A sphere behind a face and
+      // moving away from it cannot hit that face's edges either.
+      if(Math.abs(vn)<EPS){if(Math.abs(d)>=1)continue;}
+      else {
+        const t0=(1-d)/vn,t1=(-1-d)/vn;
+        if(t0>best||t1<0)continue;
+        const t=Math.max(0,t0);
+        if(tri.containsPoint(this.point.copy(o).addScaledVector(v,t).sub(face))){
+          consider(t,face,face);continue;
         }
       }
       for(const point of points){
@@ -182,9 +187,9 @@ export class OriginalMovement {
         this.vertical=this.ascent>EPS?0:DCE.jumpSpeed;
       }
       this.center.copy(position);this.center.y+=RADII.y;
-      const originY=this.center.y;
       const driveHit=this.sweep.slide(this.world.tree,this.center,this.drive,actors);
-      if(this.drive.y>0&&this.center.y<originY+this.drive.y-.001){this.ascent=0;this.vertical=0;}
+      // DCE consumes the jump impulse by elapsed time, even against an eave.
+      // The sweep blocks penetration; a glancing contact must not cancel it.
       blocked||=driveHit.blocked;
       let fallHit=null;
       if(falling>EPS){
@@ -192,7 +197,9 @@ export class OriginalMovement {
         this.vertical=this.vertical*Math.max(0,1-DCE.airFriction*falling)-gravity*falling;
         this.fall.set(0,this.vertical*falling,0);
         fallHit=this.sweep.slide(this.world.tree,this.center,this.fall,actors,this.vertical<=0?holdSlope:Infinity);
-        if(fallHit.held)this.vertical=0;
+        // Holding the contact fixes the resting position, not DCE's gravity
+        // velocity. Clearing it here loses ground contact on the next downhill
+        // step, cutting the run-up and dropping a queued jump.
         blocked||=fallHit.blocked;
         // At rest, keep a short support probe without adding artificial fall speed.
         this.normalY=this.fall.y<0?fallHit.normalY:0;
@@ -200,7 +207,10 @@ export class OriginalMovement {
           const t=this.sweep.earliest(this.world.tree,this.center,this.fall.set(0,-.055,0),actors);
           if(t!==null)this.normalY=this.sweep.hitGroundY;
         }
-        this.onGround=this.normalY>0;
+        // DCE's FInGround follows GravityCollided, including a stair riser
+        // with a horizontal face normal. Jump still needs normalY > .5.
+        // Treating that edge as airborne cuts drive force to 1% mid-step.
+        this.onGround=this.normalY>0||(this.vertical<=0&&fallHit.hit);
       }
       this.friction=DCE.airFriction+(driveHit.hit||fallHit?.hit||this.onGround?DCE.floorFriction:0);
       position.copy(this.center);position.y-=RADII.y;
